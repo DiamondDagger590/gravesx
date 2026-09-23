@@ -2,7 +2,7 @@ package com.ranull.graves.manager;
 
 import com.ranull.graves.Graves;
 import com.ranull.graves.data.BlockData;
-import com.ranull.graves.data.ChunkData;
+import com.ranull.graves.data.BlockKey;
 import com.ranull.graves.integration.MiniMessage;
 import com.ranull.graves.type.Grave;
 import com.ranull.graves.util.LocationUtil;
@@ -11,6 +11,7 @@ import dev.cwhead.GravesX.util.SkinTextureUtil_post_1_21_9;
 import me.jay.GravesX.util.SkinTextureUtil;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Skull;
@@ -46,15 +47,7 @@ public class BlockManager {
      * @return The BlockData associated with the block, or null if not found.
      */
     public BlockData getBlockData(Block block) {
-        if (plugin.getDataManager().hasChunkData(block.getLocation())) {
-            ChunkData chunkData = plugin.getDataManager().getChunkData(block.getLocation());
-
-            if (chunkData.getBlockDataMap().containsKey(block.getLocation())) {
-                return chunkData.getBlockDataMap().get(block.getLocation());
-            }
-        }
-
-        return null;
+        return plugin.getCacheManager().getBlockDataAt(BlockKey.of(block));
     }
 
     /**
@@ -171,17 +164,11 @@ public class BlockManager {
      * @return A list of BlockData associated with the grave.
      */
     public List<BlockData> getBlockDataList(Grave grave) {
-        List<BlockData> blockDataList = new ArrayList<>();
-
-        for (Map.Entry<String, ChunkData> chunkDataEntry : plugin.getCacheManager().getChunkMap().entrySet()) {
-            for (BlockData blockData : new ArrayList<>(chunkDataEntry.getValue().getBlockDataMap().values())) {
-                if (grave.getUUID().equals(blockData.getGraveUUID())) {
-                    blockDataList.add(blockData);
-                }
-            }
+        if (grave == null) {
+            return new ArrayList<>();
         }
 
-        return blockDataList;
+        return new ArrayList<>(plugin.getCacheManager().getBlockDataForGrave(grave.getUUID()));
     }
 
     /**
@@ -193,12 +180,8 @@ public class BlockManager {
     public List<Location> getBlockList(Grave grave) {
         List<Location> locationList = new ArrayList<>();
 
-        for (Map.Entry<String, ChunkData> chunkDataEntry : plugin.getCacheManager().getChunkMap().entrySet()) {
-            for (BlockData blockData : new ArrayList<>(chunkDataEntry.getValue().getBlockDataMap().values())) {
-                if (grave.getUUID().equals(blockData.getGraveUUID())) {
-                    locationList.add(blockData.getLocation());
-                }
-            }
+        for (BlockData blockData : getBlockDataList(grave)) {
+            locationList.add(blockData.getLocation());
         }
 
         return locationList;
@@ -210,14 +193,12 @@ public class BlockManager {
      * @param grave The grave to remove the blocks for.
      */
     public void removeBlock(Grave grave) {
-        for (ChunkData chunkData : plugin.getCacheManager().getChunkMap().values()) {
+        for (BlockData blockData : getBlockDataList(grave)) {
+            Location location = blockData.getLocation();
+            World world = location.getWorld();
 
-            if (chunkData.isLoaded()) {
-                for (BlockData blockData : new ArrayList<>(chunkData.getBlockDataMap().values())) {
-                    if (grave.getUUID().equals(blockData.getGraveUUID())) {
-                        removeBlock(blockData);
-                    }
-                }
+            if (world != null && world.isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) {
+                removeBlock(blockData);
             }
         }
     }

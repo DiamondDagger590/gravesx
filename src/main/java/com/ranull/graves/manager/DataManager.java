@@ -902,6 +902,8 @@ public class DataManager {
         World world = chunkData.getWorld();
         if (world == null) return;
 
+        plugin.getCacheManager().removeChunkBlockData(chunkData);
+
         boolean isFolia = plugin.getVersionManager().isFolia();
 
         if (isFolia) {
@@ -1669,17 +1671,33 @@ public class DataManager {
                     }
                 }
 
+                // The block index is rebuilt by whichever thread applies the last group, so the rebuild
+                // sees every group's data regardless of how the platform orders region tasks.
+                AtomicInteger remaining = new AtomicInteger(byChunk.size());
+
                 for (List<BlockWork> group : byChunk.values()) {
-                    if (group.isEmpty()) continue;
+                    if (group.isEmpty()) {
+                        if (remaining.decrementAndGet() == 0) {
+                            plugin.getCacheManager().rebuildBlockIndex();
+                        }
+                        continue;
+                    }
 
                     Location anchor = group.get(0).loc.clone();
 
                     plugin.getSchedulerManager().execute(anchor, () -> {
-                        for (BlockWork w : group) {
-                            try {
-                                getChunkData(w.loc).addBlockData(w.data);
-                            } catch (Throwable t) {
-                                plugin.getLogger().warning("Failed to cache block at " + w.loc + ": " + t.getMessage());
+                        try {
+                            for (BlockWork w : group) {
+                                try {
+                                    getChunkData(w.loc).addBlockData(w.data);
+                                    plugin.getCacheManager().addBlockData(w.data);
+                                } catch (Throwable t) {
+                                    plugin.getLogger().warning("Failed to cache block at " + w.loc + ": " + t.getMessage());
+                                }
+                            }
+                        } finally {
+                            if (remaining.decrementAndGet() == 0) {
+                                plugin.getCacheManager().rebuildBlockIndex();
                             }
                         }
                     });
@@ -1982,9 +2000,13 @@ public class DataManager {
         if (loc != null && loc.getWorld() != null
                 && plugin.getVersionManager().isFolia()) {
 
-            plugin.getSchedulerManager().execute(loc, () -> getChunkData(loc).addBlockData(blockData));
+            plugin.getSchedulerManager().execute(loc, () -> {
+                getChunkData(loc).addBlockData(blockData);
+                plugin.getCacheManager().addBlockData(blockData);
+            });
         } else {
             Objects.requireNonNull(getChunkData(loc)).addBlockData(blockData);
+            plugin.getCacheManager().addBlockData(blockData);
         }
 
         String query =
@@ -2024,7 +2046,9 @@ public class DataManager {
         plugin.getSchedulerManager().execute(location, () -> {
             ChunkData chunkData = getChunkData(location);
             if (chunkData != null) {
+                BlockData removed = chunkData.getBlockDataMap().get(location);
                 chunkData.removeBlockData(location);
+                plugin.getCacheManager().removeBlockData(removed);
             }
         });
 

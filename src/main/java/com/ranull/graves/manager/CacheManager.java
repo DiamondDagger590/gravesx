@@ -1,16 +1,28 @@
 package com.ranull.graves.manager;
 
+import com.ranull.graves.data.BlockData;
+import com.ranull.graves.data.BlockKey;
 import com.ranull.graves.data.ChunkData;
 import com.ranull.graves.data.EntityData;
+import com.ranull.graves.data.LocationData;
 import com.ranull.graves.type.Grave;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.inventory.ItemStack;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class CacheManager {
     /**
@@ -21,6 +33,22 @@ public class CacheManager {
      * </p>
      */
     private final Map<UUID, Grave> graveMap;
+
+    /**
+     * Death-block &harr; grave index kept in step with {@link #graveMap} by {@link IndexedGraveMap}.
+     *
+     * @since 2026.4.9.3
+     */
+    private final GraveIndex graveIndex = new GraveIndex();
+
+    /**
+     * Grave &harr; placed-block index maintained through {@link #addBlockData(BlockData)},
+     * {@link #removeBlockData(BlockData)}, {@link #removeChunkBlockData(ChunkData)} and
+     * {@link #rebuildBlockIndex()}.
+     *
+     * @since 2026.4.9.3
+     */
+    private final BlockIndex blockIndex = new BlockIndex();
 
     /**
      * A map of chunk identifiers to their corresponding {@link ChunkData} objects.
@@ -83,7 +111,7 @@ public class CacheManager {
      * </p>
      */
     public CacheManager() {
-        this.graveMap = new HashMap<>();
+        this.graveMap = new IndexedGraveMap();
         this.chunkMap = new HashMap<>();
         this.lastLocationMap = new HashMap<>();
         this.removedItemStackMap = new HashMap<>();
@@ -266,22 +294,8 @@ public class CacheManager {
      * @return the matching {@link Grave}, or {@code null} if none is found
      */
     public Grave getGrave(Block block) {
-        for (Grave grave : graveMap.values()) {
-            if (grave == null) {
-                continue;
-            }
-
-            Location graveLocation = grave.getLocationDeath();
-            if (graveLocation == null || graveLocation.getWorld() == null) {
-                continue;
-            }
-
-            if (graveLocation.getWorld().equals(block.getWorld()) && graveLocation.getBlockX() == block.getX() && graveLocation.getBlockY() == block.getY() && graveLocation.getBlockZ() == block.getZ()) {
-                return grave;
-            }
-        }
-
-        return null;
+        List<Grave> graves = gravesAtDeathBlock(BlockKey.of(block));
+        return graves.isEmpty() ? null : graves.get(0);
     }
 
     /**
@@ -317,25 +331,160 @@ public class CacheManager {
      * @return the matching {@link Grave}, or {@code null} if none is found
      */
     public Grave getGrave(Location location) {
-        if (location == null || location.getWorld() == null) {
-            return null;
+        List<Grave> graves = gravesAtDeathBlock(BlockKey.of(location));
+        return graves.isEmpty() ? null : graves.get(0);
+    }
+
+    /**
+     * All cached graves whose death block is {@code key}, earliest-inserted first.
+     *
+     * @param key the death block; may be {@code null}
+     * @return the matching graves; never {@code null}
+     * @since 2026.4.9.3
+     */
+    public @NotNull List<Grave> getGravesAt(@Nullable BlockKey key) {
+        return gravesAtDeathBlock(key);
+    }
+
+    /**
+     * Re-indexes a cached grave after its death location changed. Must be called by any code that
+     * invokes {@link Grave#setLocationDeath(Location)} on a grave already in the cache.
+     *
+     * @param grave the grave whose death location changed; ignored if {@code null}
+     * @since 2026.4.9.3
+     */
+    public void reindexGrave(@Nullable Grave grave) {
+        if (grave == null || grave.getUUID() == null) {
+            return;
         }
 
-        for (Grave grave : graveMap.values()) {
-            Location graveLocation = grave.getLocationDeath();
-            if (graveLocation == null || graveLocation.getWorld() == null) {
-                continue;
-            }
+        if (graveMap.containsKey(grave.getUUID())) {
+            indexDeath(grave.getUUID(), grave);
+        } else {
+            graveIndex.remove(grave.getUUID());
+        }
+    }
 
-            if (graveLocation.getWorld().equals(location.getWorld())
-                    && graveLocation.getBlockX() == location.getBlockX()
-                    && graveLocation.getBlockY() == location.getBlockY()
-                    && graveLocation.getBlockZ() == location.getBlockZ()) {
-                return grave;
+    /**
+     * Records a placed grave block in the index. Idempotent.
+     *
+     * @param blockData the block; ignored if {@code null}
+     * @since 2026.4.9.3
+     */
+    public void addBlockData(@Nullable BlockData blockData) {
+        if (blockData != null) {
+            blockIndex.add(blockData);
+        }
+    }
+
+    /**
+     * Forgets a placed grave block. No-op if unknown.
+     *
+     * @param blockData the block; ignored if {@code null}
+     * @since 2026.4.9.3
+     */
+    public void removeBlockData(@Nullable BlockData blockData) {
+        if (blockData != null) {
+            blockIndex.remove(blockData);
+        }
+    }
+
+    /**
+     * Forgets every block of a chunk being dropped from the cache.
+     *
+     * @param chunkData the chunk; ignored if {@code null}
+     * @since 2026.4.9.3
+     */
+    public void removeChunkBlockData(@Nullable ChunkData chunkData) {
+        if (chunkData == null) {
+            return;
+        }
+
+        for (BlockData blockData : new ArrayList<>(chunkData.getBlockDataMap().values())) {
+            blockIndex.remove(blockData);
+        }
+    }
+
+    /**
+     * Re-adds every block in the chunk map to the index. Additive and idempotent: it never clears, so
+     * it is safe to run while other threads are still writing.
+     *
+     * @since 2026.4.9.3
+     */
+    public void rebuildBlockIndex() {
+        for (ChunkData chunkData : new ArrayList<>(chunkMap.values())) {
+            for (BlockData blockData : new ArrayList<>(chunkData.getBlockDataMap().values())) {
+                blockIndex.add(blockData);
+            }
+        }
+    }
+
+    /**
+     * Snapshot of the placed blocks recorded for a grave.
+     *
+     * @param graveUUID the grave UUID; may be {@code null}
+     * @return the recorded blocks; never {@code null}
+     * @since 2026.4.9.3
+     */
+    public @NotNull List<BlockData> getBlockDataForGrave(@Nullable UUID graveUUID) {
+        return blockIndex.forGrave(graveUUID);
+    }
+
+    /**
+     * The grave block recorded at a position.
+     *
+     * @param key the block position; may be {@code null}
+     * @return the recorded block, or {@code null} if none
+     * @since 2026.4.9.3
+     */
+    public @Nullable BlockData getBlockDataAt(@Nullable BlockKey key) {
+        return blockIndex.at(key);
+    }
+
+    /**
+     * Indexes {@code grave}'s death block from its stored {@link LocationData} &mdash; no world lookup, no
+     * {@link Location} allocation. A grave without a stored death location is removed from the index.
+     *
+     * @param graveUUID the grave UUID
+     * @param grave     the grave; may be {@code null}
+     */
+    private void indexDeath(@NotNull UUID graveUUID, @Nullable Grave grave) {
+        LocationData deathData = grave != null ? grave.getLocationDeathData() : null;
+        BlockKey key = deathData != null ? deathData.toBlockKey() : null;
+        if (key != null) {
+            graveIndex.add(graveUUID, key);
+        } else {
+            graveIndex.remove(graveUUID);
+        }
+    }
+
+    /**
+     * Cached graves whose stored death block is {@code key}, earliest-inserted first. Stale index entries
+     * (grave removed, or death location changed without {@link #reindexGrave(Grave)}) are dropped on the way.
+     *
+     * @param key the death block; may be {@code null}
+     * @return the matching graves; never {@code null}
+     */
+    private @NotNull List<Grave> gravesAtDeathBlock(@Nullable BlockKey key) {
+        List<UUID> uuids = graveIndex.lookup(key);
+        if (uuids.isEmpty()) {
+            return List.of();
+        }
+
+        List<Grave> graves = new ArrayList<>(uuids.size());
+        for (UUID uuid : uuids) {
+            Grave grave = graveMap.get(uuid);
+            LocationData deathData = grave != null ? grave.getLocationDeathData() : null;
+            BlockKey current = deathData != null ? deathData.toBlockKey() : null;
+            if (grave != null && key.equals(current)) {
+                graves.add(grave);
+            } else {
+                // Self-heal: the grave was removed, or its death location changed without reindexGrave().
+                graveIndex.remove(uuid);
             }
         }
 
-        return null;
+        return graves;
     }
 
     /**
@@ -398,5 +547,258 @@ public class CacheManager {
         }
 
         removeEntityData(entityData.getUUIDEntity());
+    }
+
+    /**
+     * {@code Map<UUID, Grave>} view over a {@link ConcurrentHashMap} whose mutators keep
+     * {@link #graveIndex} in step. Backed by a concurrent map so the async database loader and
+     * the main-thread timer can no longer race a {@code HashMap}.
+     * <p>
+     * All {@link Map} default methods ({@code putIfAbsent}, {@code compute*}, {@code merge},
+     * {@code replace}, {@code remove(k, v)}, {@code replaceAll}) are implemented in terms of
+     * {@link #get}, {@link #put}, {@link #remove} and {@link #entrySet()}, so overriding those plus
+     * {@link #clear()}, {@link #putAll} and the entry iterator covers every mutation path. Null keys
+     * are tolerated by the read and remove paths, as the previous {@code HashMap} did.
+     * </p>
+     * <p>
+     * {@link #remove(Object)} deliberately does not touch {@link #blockIndex}: some removal paths drop the
+     * grave from the map before the grave's blocks are removed, and still need the block list.
+     * </p>
+     *
+     * @since 2026.4.9.3
+     */
+    private final class IndexedGraveMap extends AbstractMap<UUID, Grave> {
+
+        /**
+         * The backing map holding the actual entries.
+         */
+        private final ConcurrentHashMap<UUID, Grave> delegate = new ConcurrentHashMap<>();
+
+        /**
+         * Returns the grave mapped to {@code key}.
+         *
+         * @param key the grave UUID; may be {@code null}
+         * @return the grave, or {@code null} if absent or {@code key} is {@code null}
+         */
+        @Override
+        public @Nullable Grave get(@Nullable Object key) {
+            return key == null ? null : delegate.get(key);
+        }
+
+        /**
+         * Returns whether {@code key} is mapped.
+         *
+         * @param key the grave UUID; may be {@code null}
+         * @return {@code true} if mapped; {@code false} if absent or {@code key} is {@code null}
+         */
+        @Override
+        public boolean containsKey(@Nullable Object key) {
+            return key != null && delegate.containsKey(key);
+        }
+
+        /**
+         * Returns the number of cached graves.
+         *
+         * @return the size of the map
+         */
+        @Override
+        public int size() {
+            return delegate.size();
+        }
+
+        /**
+         * Maps {@code key} to {@code value} and indexes the grave's death block.
+         *
+         * @param key   the grave UUID
+         * @param value the grave
+         * @return the previously mapped grave, or {@code null}
+         */
+        @Override
+        public @Nullable Grave put(@NotNull UUID key, @NotNull Grave value) {
+            Grave previous = delegate.put(key, value);
+            indexDeath(key, value);
+            return previous;
+        }
+
+        /**
+         * Removes the mapping for {@code key} and unindexes its death block.
+         *
+         * @param key the grave UUID; may be {@code null}
+         * @return the removed grave, or {@code null} if absent or {@code key} is {@code null}
+         */
+        @Override
+        public @Nullable Grave remove(@Nullable Object key) {
+            if (key == null) {
+                return null;
+            }
+
+            Grave removed = delegate.remove(key);
+            if (removed != null && key instanceof UUID uuid) {
+                graveIndex.remove(uuid);
+            }
+
+            return removed;
+        }
+
+        /**
+         * Puts every entry of {@code m} through {@link #put} so each is indexed.
+         *
+         * @param m the entries to add
+         */
+        @Override
+        public void putAll(@NotNull Map<? extends UUID, ? extends Grave> m) {
+            m.forEach(this::put);
+        }
+
+        /**
+         * Removes every grave and empties the death-block index.
+         */
+        @Override
+        public void clear() {
+            delegate.clear();
+            graveIndex.clear();
+        }
+
+        /**
+         * Entry-set view whose iterator removal and {@code Entry.setValue} keep the index in step.
+         *
+         * @return the entry set view
+         */
+        @Override
+        public @NotNull Set<Entry<UUID, Grave>> entrySet() {
+            return new AbstractSet<>() {
+                /**
+                 * Returns the number of cached graves.
+                 *
+                 * @return the size of the backing map
+                 */
+                @Override
+                public int size() {
+                    return delegate.size();
+                }
+
+                /**
+                 * Returns an iterator whose {@code remove} unindexes the removed grave.
+                 *
+                 * @return the entry iterator
+                 */
+                @Override
+                public @NotNull Iterator<Entry<UUID, Grave>> iterator() {
+                    Iterator<Entry<UUID, Grave>> it = delegate.entrySet().iterator();
+                    return new Iterator<>() {
+                        /**
+                         * The entry most recently returned by {@link #next()}.
+                         */
+                        private Entry<UUID, Grave> current;
+
+                        /**
+                         * Returns whether more entries remain.
+                         *
+                         * @return {@code true} if more entries remain
+                         */
+                        @Override
+                        public boolean hasNext() {
+                            return it.hasNext();
+                        }
+
+                        /**
+                         * Returns the next entry, wrapped so {@code setValue} re-indexes.
+                         *
+                         * @return the next entry
+                         */
+                        @Override
+                        public Entry<UUID, Grave> next() {
+                            current = it.next();
+                            return new IndexedEntry(current);
+                        }
+
+                        /**
+                         * Removes the current entry and unindexes its grave.
+                         */
+                        @Override
+                        public void remove() {
+                            it.remove();
+                            if (current != null) {
+                                graveIndex.remove(current.getKey());
+                            }
+                        }
+                    };
+                }
+            };
+        }
+
+        /**
+         * Entry whose {@code setValue} writes through {@link IndexedGraveMap#put} so the index sees it.
+         */
+        private final class IndexedEntry implements Entry<UUID, Grave> {
+
+            /**
+             * The backing map's entry.
+             */
+            private final Entry<UUID, Grave> delegateEntry;
+
+            /**
+             * Wraps a backing entry.
+             *
+             * @param delegateEntry the backing map's entry
+             */
+            IndexedEntry(@NotNull Entry<UUID, Grave> delegateEntry) {
+                this.delegateEntry = delegateEntry;
+            }
+
+            /**
+             * Returns the grave UUID.
+             *
+             * @return the key
+             */
+            @Override
+            public UUID getKey() {
+                return delegateEntry.getKey();
+            }
+
+            /**
+             * Returns the grave.
+             *
+             * @return the value
+             */
+            @Override
+            public Grave getValue() {
+                return delegateEntry.getValue();
+            }
+
+            /**
+             * Replaces the grave through {@link IndexedGraveMap#put}, re-indexing it.
+             *
+             * @param value the new grave
+             * @return the previous grave
+             */
+            @Override
+            public Grave setValue(Grave value) {
+                return put(getKey(), value);
+            }
+
+            /**
+             * Entry equality per the {@link Entry} contract.
+             *
+             * @param o the object to compare
+             * @return {@code true} if {@code o} is an entry with an equal key and value
+             */
+            @Override
+            public boolean equals(Object o) {
+                return o instanceof Entry<?, ?> e
+                        && Objects.equals(getKey(), e.getKey())
+                        && Objects.equals(getValue(), e.getValue());
+            }
+
+            /**
+             * Entry hash code per the {@link Entry} contract.
+             *
+             * @return the hash code
+             */
+            @Override
+            public int hashCode() {
+                return Objects.hashCode(getKey()) ^ Objects.hashCode(getValue());
+            }
+        }
     }
 }

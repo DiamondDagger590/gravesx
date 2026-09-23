@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.NamespacedKey;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -130,6 +131,34 @@ public class LocationData implements Serializable {
         }
 
         return (world != null) ? new Location(world, x, y, z, yaw, pitch) : null;
+    }
+
+    /**
+     * The stored world UID.
+     *
+     * @return the world UID, or {@code null} if the serialised location had no world
+     * @since 2026.4.9.3
+     */
+    public @Nullable UUID getWorldUUID() {
+        return uuid;
+    }
+
+    /**
+     * The block key of this location, computed from the stored fields without resolving the world.
+     * <p>
+     * {@link Math#floor(double)} matches {@link Location#getBlockX()} and friends, so the key is the same one
+     * {@link BlockKey#of(Location)} produces for the resolved location.
+     * </p>
+     *
+     * @return the key, or {@code null} if no world UID was stored
+     * @since 2026.4.9.3
+     */
+    public @Nullable BlockKey toBlockKey() {
+        if (uuid == null) {
+            return null;
+        }
+
+        return new BlockKey(uuid, (int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
     }
 
     /**

@@ -3,6 +3,7 @@ package com.ranull.graves.manager;
 import com.ranull.graves.Graves;
 import com.ranull.graves.compatibility.CompatibilityInventoryView;
 import com.ranull.graves.data.BlockData;
+import com.ranull.graves.data.BlockKey;
 import com.ranull.graves.data.ChunkData;
 import com.ranull.graves.data.EntityData;
 import com.ranull.graves.data.HologramData;
@@ -2373,30 +2374,17 @@ public class GraveManager {
             return new ArrayList<>();
         }
 
-        List<Location> locationList = new ArrayList<>(plugin.getBlockManager().getBlockList(grave));
-        Map<Double, Location> locationMap = new HashMap<>();
-        List<Location> otherWorldLocationList = new ArrayList<>();
-
-        if (baseLocation.getWorld() != null) {
-            if (!locationList.contains(grave.getLocationDeath())) {
-                locationList.add(grave.getLocationDeath());
-            }
-
-            for (Location location : locationList) {
-                if (location != null) {
-                    if (location.getWorld() != null && baseLocation.getWorld().equals(location.getWorld())) {
-                        locationMap.put(location.distanceSquared(baseLocation), location);
-                    } else {
-                        otherWorldLocationList.add(location);
-                    }
-                }
-            }
-
-            locationList = new ArrayList<>(new TreeMap<>(locationMap).values());
-            locationList.addAll(otherWorldLocationList);
+        List<Location> locationList = plugin.getBlockManager().getBlockList(grave);
+        if (baseLocation.getWorld() == null) {
+            return locationList;
         }
 
-        return locationList;
+        Location death = grave.getLocationDeath();
+        if (death != null && !locationList.contains(death)) {
+            locationList.add(death);
+        }
+
+        return LocationUtil.sortByDistance(baseLocation, locationList); // stable; equal distances are kept
     }
 
     /**
@@ -2575,35 +2563,40 @@ public class GraveManager {
             return false;
         }
 
-        try {
-            Collection<Grave> graves = plugin.getCacheManager().getGraveMap().values();
+        BlockKey key = BlockKey.of(location);
+        CacheManager cache = plugin.getCacheManager();
 
-            for (Grave grave : new ArrayList<>(graves)) {
-                if (grave == null) {
-                    continue;
-                }
+        BlockData blockData = cache.getBlockDataAt(key);
+        List<Grave> byDeath = cache.getGravesAt(key);
+        if (blockData == null && byDeath.isEmpty()) {
+            return false; // the overwhelmingly common exit: no allocation
+        }
 
-                Location base =
-                        (player != null) ? player.getLocation()
-                                : (block != null) ? block.getLocation()
-                                : location;
+        Location base = (player != null) ? player.getLocation()
+                : (block != null) ? block.getLocation()
+                : location;
 
-                Location graveLocation = plugin.getGraveManager().getGraveLocation(base, grave);
+        List<Grave> candidates = new ArrayList<>(byDeath.size() + 1);
+        Grave byBlock = blockData != null ? cache.getGrave(blockData.getGraveUUID()) : null;
+        if (byBlock != null) {
+            candidates.add(byBlock);
+        }
 
-                if (graveLocation == null
-                        || graveLocation.getWorld() == null
-                        || !graveLocation.getWorld().equals(location.getWorld())) {
-                    continue;
-                }
-
-                if (graveLocation.getBlockX() == location.getBlockX()
-                        && graveLocation.getBlockY() == location.getBlockY()
-                        && graveLocation.getBlockZ() == location.getBlockZ()) {
-                    return true;
-                }
+        for (Grave grave : byDeath) {
+            if (!candidates.contains(grave)) {
+                candidates.add(grave);
             }
-        } catch (Throwable ignored) {
-            // Graceful fallback in case of any error
+        }
+
+        for (Grave grave : candidates) {
+            Location nearest = getGraveLocation(base, grave);
+            if (nearest != null && nearest.getWorld() != null
+                    && nearest.getWorld().equals(location.getWorld())
+                    && nearest.getBlockX() == location.getBlockX()
+                    && nearest.getBlockY() == location.getBlockY()
+                    && nearest.getBlockZ() == location.getBlockZ()) {
+                return true;
+            }
         }
 
         return false;

@@ -3,8 +3,11 @@ package com.ranull.graves.util;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -93,6 +96,38 @@ public final class LocationUtil {
         }
 
         return locationClosest;
+    }
+
+    /**
+     * Orders {@code locations} by squared distance from {@code base}. Locations in {@code base}'s world
+     * come first, nearest first, with a stable sort so equal distances keep their input order; locations
+     * in other worlds (or with no world) follow in input order. {@code null} entries are skipped.
+     *
+     * @param base      the location to measure from
+     * @param locations the locations to order; not modified
+     * @return a new list holding every non-null input location in the order described above
+     * @since 2026.4.9.3
+     */
+    public static @NotNull List<Location> sortByDistance(@NotNull Location base, @NotNull List<Location> locations) {
+        World baseWorld = base.getWorld();
+        List<Location> sameWorld = new ArrayList<>(locations.size());
+        List<Location> otherWorld = new ArrayList<>();
+
+        for (Location location : locations) {
+            if (location == null) {
+                continue;
+            }
+
+            if (baseWorld != null && baseWorld.equals(location.getWorld())) {
+                sameWorld.add(location);
+            } else {
+                otherWorld.add(location);
+            }
+        }
+
+        sameWorld.sort(Comparator.comparingDouble(base::distanceSquared));
+        sameWorld.addAll(otherWorld);
+        return sameWorld;
     }
 
     /**
