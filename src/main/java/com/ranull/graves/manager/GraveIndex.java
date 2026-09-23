@@ -38,7 +38,6 @@ final class GraveIndex {
      *
      * @param graveUUID the grave UUID
      * @param key       the grave's death block
-     * @since 2026.4.9.3
      */
     void add(@NotNull UUID graveUUID, @NotNull BlockKey key) {
         remove(graveUUID);
@@ -55,7 +54,6 @@ final class GraveIndex {
      * Forgets {@code graveUUID}. No-op if unknown.
      *
      * @param graveUUID the grave UUID
-     * @since 2026.4.9.3
      */
     void remove(@NotNull UUID graveUUID) {
         BlockKey old = deathBlockByGrave.remove(graveUUID);
@@ -71,8 +69,6 @@ final class GraveIndex {
 
     /**
      * Empties both directions of the index.
-     *
-     * @since 2026.4.9.3
      */
     void clear() {
         gravesByDeathBlock.clear();
@@ -84,7 +80,6 @@ final class GraveIndex {
      *
      * @param key the death block to look up; may be {@code null}
      * @return a safe-to-iterate snapshot; never {@code null}, empty when {@code key} is {@code null} or unknown
-     * @since 2026.4.9.3
      */
     @NotNull
     List<UUID> lookup(@Nullable BlockKey key) {
@@ -101,7 +96,6 @@ final class GraveIndex {
      *
      * @param graveUUID the grave UUID
      * @return the recorded death block, or {@code null} if the grave is not indexed
-     * @since 2026.4.9.3
      */
     @Nullable
     BlockKey keyOf(@NotNull UUID graveUUID) {

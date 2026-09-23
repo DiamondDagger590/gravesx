@@ -54,15 +54,12 @@ public final class DebugManager {
      * @param level           the configured debug level, clamped to 0..2
      * @param showCaller      whether to tag messages with the triggering plugin
      * @param showCallerClass whether the tag includes class, method and line
-     * @since 2026.4.9.3
      */
     private record DebugSettings(int level, boolean showCaller, boolean showCallerClass) {}
 
     /**
      * Cached debug settings; {@code null} until first read or after {@link #refreshFromConfig()}. Read lazily
      * because this manager is constructed before the config manager.
-     *
-     * @since 2026.4.9.3
      */
     private volatile DebugSettings settings;
 

@@ -36,8 +36,6 @@ public class CacheManager {
 
     /**
      * Death-block &harr; grave index kept in step with {@link #graveMap} by {@link IndexedGraveMap}.
-     *
-     * @since 2026.4.9.3
      */
     private final GraveIndex graveIndex = new GraveIndex();
 
@@ -45,8 +43,6 @@ public class CacheManager {
      * Grave &harr; placed-block index maintained through {@link #addBlockData(BlockData)},
      * {@link #removeBlockData(BlockData)}, {@link #removeChunkBlockData(ChunkData)} and
      * {@link #rebuildBlockIndex()}.
-     *
-     * @since 2026.4.9.3
      */
     private final BlockIndex blockIndex = new BlockIndex();
 
@@ -564,8 +560,6 @@ public class CacheManager {
      * {@link #remove(Object)} deliberately does not touch {@link #blockIndex}: some removal paths drop the
      * grave from the map before the grave's blocks are removed, and still need the block list.
      * </p>
-     *
-     * @since 2026.4.9.3
      */
     private final class IndexedGraveMap extends AbstractMap<UUID, Grave> {
 
@@ -667,11 +661,6 @@ public class CacheManager {
         @Override
         public @NotNull Set<Entry<UUID, Grave>> entrySet() {
             return new AbstractSet<>() {
-                /**
-                 * Returns the number of cached graves.
-                 *
-                 * @return the size of the backing map
-                 */
                 @Override
                 public int size() {
                     return delegate.size();
@@ -691,21 +680,11 @@ public class CacheManager {
                          */
                         private Entry<UUID, Grave> current;
 
-                        /**
-                         * Returns whether more entries remain.
-                         *
-                         * @return {@code true} if more entries remain
-                         */
                         @Override
                         public boolean hasNext() {
                             return it.hasNext();
                         }
 
-                        /**
-                         * Returns the next entry, wrapped so {@code setValue} re-indexes.
-                         *
-                         * @return the next entry
-                         */
                         @Override
                         public Entry<UUID, Grave> next() {
                             current = it.next();
@@ -746,21 +725,11 @@ public class CacheManager {
                 this.delegateEntry = delegateEntry;
             }
 
-            /**
-             * Returns the grave UUID.
-             *
-             * @return the key
-             */
             @Override
             public UUID getKey() {
                 return delegateEntry.getKey();
             }
 
-            /**
-             * Returns the grave.
-             *
-             * @return the value
-             */
             @Override
             public Grave getValue() {
                 return delegateEntry.getValue();
@@ -777,12 +746,6 @@ public class CacheManager {
                 return put(getKey(), value);
             }
 
-            /**
-             * Entry equality per the {@link Entry} contract.
-             *
-             * @param o the object to compare
-             * @return {@code true} if {@code o} is an entry with an equal key and value
-             */
             @Override
             public boolean equals(Object o) {
                 return o instanceof Entry<?, ?> e
@@ -790,11 +753,6 @@ public class CacheManager {
                         && Objects.equals(getValue(), e.getValue());
             }
 
-            /**
-             * Entry hash code per the {@link Entry} contract.
-             *
-             * @return the hash code
-             */
             @Override
             public int hashCode() {
                 return Objects.hashCode(getKey()) ^ Objects.hashCode(getValue());

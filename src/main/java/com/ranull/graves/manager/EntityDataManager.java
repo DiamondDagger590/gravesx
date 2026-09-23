@@ -32,8 +32,6 @@ public class EntityDataManager {
 
     /**
      * Ticks after which an unfinished entity resolution completes with whatever was found.
-     *
-     * @since 2026.4.9.3
      */
     private static final long RESOLVE_TIMEOUT_TICKS = 100L;
 
@@ -235,7 +233,7 @@ public class EntityDataManager {
             Location groupAnchor = group.get(0).getLocation();
             ChunkKey chunk = entry.getKey();
 
-            boolean scheduled = plugin.getChunkManager().ensureLoadedAndExecute(groupAnchor, groupAnchor, false, false, () -> {
+            Runnable scanGroup = () -> {
                 try {
                     Map<UUID, Entity> byId = new HashMap<>();
                     for (Entity entity : groupAnchor.getWorld().getChunkAt(chunk.x(), chunk.z()).getEntities()) {
@@ -258,7 +256,17 @@ public class EntityDataManager {
                 } finally {
                     onChunkDone.run();
                 }
-            });
+            };
+
+            boolean scheduled;
+            try {
+                scheduled = plugin.getChunkManager().ensureLoadedAndExecute(groupAnchor, groupAnchor, false, false, scanGroup);
+            } catch (Throwable t) {
+                plugin.getLogger().severe("Failed to schedule entity resolution for chunk " + chunk + ": " + t.getMessage());
+                plugin.logStackTrace(t);
+                onChunkDone.run();
+                continue;
+            }
 
             if (!scheduled) {
                 onChunkDone.run(); // Folia without an async chunk API: nothing more we can do

@@ -711,8 +711,8 @@ public class EntityManager extends EntityDataManager {
                 }
 
                 String message = StringUtil.parseString(string, entity, name, location, grave, plugin);
-                String resolvedMessage = string;
-                plugin.debugMessage(() -> "Message found for " + resolvedMessage + " in grave.yml. Sending message to " + entity.getName() + ".", 2);
+                String messageTemplate = string;
+                plugin.debugMessage(() -> "Message found for " + messageTemplate + " in grave.yml. Sending message to " + entity.getName() + ".", 2);
                 if (plugin.getIntegrationManager().hasMiniMessage()) {
                     MiniMessage.sendMessage(player, message);
                 } else {

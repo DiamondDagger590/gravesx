@@ -21,6 +21,7 @@ import dev.cwhead.GravesX.api.provider.RegisterGraveProviders;
 import dev.cwhead.GravesX.event.*;
 import dev.cwhead.GravesX.exception.GravesXGraveProviderException;
 import dev.cwhead.GravesX.exception.GravesXNullPointerException;
+import dev.cwhead.GravesX.keys.GraveHologramKeys;
 import me.jay.GravesX.util.pluginsWithoutMavenReposOrUsefulApiDocsThatCauseBugs.ReflectSupportAE;
 import com.ranull.graves.util.StringUtil;
 import org.bukkit.*;
@@ -34,6 +35,7 @@ import org.bukkit.inventory.*;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
@@ -68,10 +70,14 @@ public class GraveManager {
     /**
      * Set while a {@link #restoreMissingGraves(Collection)} pass is still resolving its placement checks, so passes
      * never overlap.
-     *
-     * @since 2026.4.9.3
      */
     private final AtomicBoolean restorePassInFlight = new AtomicBoolean(false);
+
+    /**
+     * Ticks after which a scheduled placement world check that never ran (for example, a dropped Folia region
+     * task) completes as "placed", so a restore pass can never be stranded.
+     */
+    private static final long PLACEMENT_CHECK_TIMEOUT_TICKS = 100L;
 
     /**
      * Initializes the GraveManager with the specified plugin instance.
@@ -1410,7 +1416,8 @@ public class GraveManager {
      * <p>
      * Placement checks run through {@link #isGravePlacedAsync(Grave)} and never block. A grave is only
      * placed if it is still the cached instance both when its check completes and when the scheduled
-     * placement runs, so a grave removed meanwhile is never resurrected. At most one pass is in flight.
+     * placement runs, so a grave removed meanwhile is never resurrected. Any hologram entities that
+     * survived are removed before the grave is placed again. At most one pass is in flight.
      * </p>
      *
      * @param excluded graves being removed this tick; never restored
@@ -1439,6 +1446,8 @@ public class GraveManager {
                     plugin.getSchedulerManager().execute(loc, () -> {
                         if (knownGraves.contains(id) || graveMap.get(id) != grave) return; // placed or removed meanwhile
                         try {
+                            // Clear any surviving hologram entities first so placement does not stack a second set.
+                            plugin.getHologramManager().removeHologram(grave);
                             placeGrave(loc, grave);
                             knownGraves.add(id);
                         } catch (Throwable t) {
@@ -1526,9 +1535,10 @@ public class GraveManager {
      * and is otherwise scheduled there. The future completes on that owning thread. Never blocks.
      * <p>
      * A grave counts as placed when any of its recorded blocks is non-empty, when a head block sits at
-     * its death location (which is then recorded), or when an entity sits inside the death block
-     * (hologram marker, armor stand, corpse). A grave whose death chunk is unloaded is reported as placed
-     * without being cached, so it is re-evaluated once the chunk loads.
+     * its death location (which is then recorded), or when an entity other than a GravesX hologram sits
+     * inside the death block (armor stand, corpse). A grave whose death chunk is unloaded is reported as
+     * placed without being cached, so it is re-evaluated once the chunk loads. If the scheduled world check
+     * never runs, the future completes as placed after {@value #PLACEMENT_CHECK_TIMEOUT_TICKS} ticks.
      * </p>
      *
      * @param grave the grave to check; may be {@code null}
@@ -1571,7 +1581,14 @@ public class GraveManager {
                     return;
                 }
 
-                result.complete(!location.getWorld().getNearbyEntities(location, 0.49, 0.49, 0.49).isEmpty());
+                boolean occupied = false;
+                for (Entity entity : location.getWorld().getNearbyEntities(location, 0.49, 0.49, 0.49)) {
+                    if (!isGraveHologram(entity)) {
+                        occupied = true;
+                        break;
+                    }
+                }
+                result.complete(occupied);
             } catch (Throwable t) {
                 plugin.debugMessage(() -> "isGravePlaced world check failed for " + id + " -> treating as placed. Reason: " + t, 2);
                 result.complete(true);
@@ -1582,6 +1599,8 @@ public class GraveManager {
             worldCheck.run();
         } else {
             plugin.getSchedulerManager().execute(location, worldCheck);
+            // A dropped region task must not strand the future (and with it the restore pass).
+            plugin.getSchedulerManager().runTaskLater(location, () -> result.complete(true), PLACEMENT_CHECK_TIMEOUT_TICKS);
         }
 
         return result.thenApply(placed -> {
@@ -1603,6 +1622,26 @@ public class GraveManager {
     @ApiStatus.ScheduledForRemoval(inVersion = "2027.4.9.1")
     public boolean isGravePlaced(Grave grave) {
         return isGravePlacedAsync(grave).getNow(true);
+    }
+
+    /**
+     * Whether {@code entity} is a GravesX hologram line (ArmorStand or TextDisplay). Holograms are tagged on
+     * spawn with the {@code graveHologram} scoreboard tag and, where persistent data exists, the
+     * {@link GraveHologramKeys#GRAVE_UUID} key. The placement check must ignore them: with the default
+     * offsets a grave's own hologram sits on the edge of the death-block box, so counting it would call a
+     * grave whose block was wiped "placed" (never restored) or, once the block check fails, leave the stack
+     * standing while a second one is spawned.
+     *
+     * @param entity the entity to test
+     * @return {@code true} if the entity carries a GravesX hologram tag or key
+     */
+    private boolean isGraveHologram(@NotNull Entity entity) {
+        if (plugin.getVersionManager().hasScoreboardTags() && entity.getScoreboardTags().contains("graveHologram")) {
+            return true;
+        }
+
+        return plugin.getVersionManager().hasPersistentData()
+                && entity.getPersistentDataContainer().has(GraveHologramKeys.GRAVE_UUID, PersistentDataType.STRING);
     }
 
     private boolean isHeadBlock(Block block) {

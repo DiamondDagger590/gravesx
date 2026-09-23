@@ -56,16 +56,12 @@ public class ImportManager {
 
     /**
      * Graves placed per tick during an import.
-     *
-     * @since 2026.4.9.3
      */
     private static final int IMPORT_BATCH_SIZE = 25;
 
     /**
      * Set while an import is running; at most one import runs at a time. Lives on the manager (which is
      * recreated on reload) rather than on the command, so a reload never leaves it stuck.
-     *
-     * @since 2026.4.9.3
      */
     private final AtomicBoolean importInFlight = new AtomicBoolean(false);
 
@@ -149,7 +145,10 @@ public class ImportManager {
      * @param file                 the file
      * @param status               the scan outcome
      * @param world                the resolved world, or {@code null}
-     * @param coords               the resolved coordinates, or {@code null} if incomplete
+     * @param coords               the resolved coordinates, or {@code null} if any axis is unresolved
+     * @param x                    the resolved X coordinate, or {@code null} if unresolved
+     * @param y                    the resolved Y coordinate, or {@code null} if unresolved
+     * @param z                    the resolved Z coordinate, or {@code null} if unresolved
      * @param ownerName            the owner name hint, or {@code null}
      * @param ownerUUID            the owner UUID hint, or {@code null}
      * @param worldUUIDPrimary     the {@code worldid} hint, or {@code null}
@@ -163,6 +162,9 @@ public class ImportManager {
             @NotNull Status status,
             @Nullable World world,
             @Nullable BlockCoords coords,
+            @Nullable Integer x,
+            @Nullable Integer y,
+            @Nullable Integer z,
             @Nullable String ownerName,
             @Nullable UUID ownerUUID,
             @Nullable UUID worldUUIDPrimary,
@@ -365,15 +367,17 @@ public class ImportManager {
     }
 
     /**
-     * Renders the dry-run summary exactly as {@link #countAngelChestStatusText()} always has. The
+     * Renders the dry-run summary in the format {@link #countAngelChestStatusText()} always used. The
      * "Importable" line keeps its historical meaning: loadable files whose world resolved
-     * ({@code valid - missingWorld}), including files whose coordinates are incomplete.
+     * ({@code valid - missingWorld}), including files whose coordinates are incomplete. Pure; safe on any
+     * thread. Unlike before, a file that fails to parse as YAML is counted as invalid rather than as an
+     * empty, valid file.
      *
      * @param scan the scan to render
      * @return multiline human-readable summary
      * @since 2026.4.9.3
      */
-    public @NotNull String statusText(@NotNull AngelChestScan scan) {
+    public static @NotNull String statusText(@NotNull AngelChestScan scan) {
         if (scan.total() == 0) {
             return "No files found in plugins/AngelChest/angelchests. Returning as none.";
         }
@@ -389,13 +393,15 @@ public class ImportManager {
     }
 
     /**
-     * Renders the missing-world report exactly as {@link #listAngelChestMissingWorldText()} always has.
+     * Renders the missing-world report in the format {@link #listAngelChestMissingWorldText()} always used,
+     * including per-axis coordinates ({@code -} for an axis no source provides). Pure; safe on any thread.
+     * Files that fail to parse as YAML are not listed (they are counted as invalid).
      *
      * @param scan the scan to render
      * @return multiline human-readable list of missing-world entries
      * @since 2026.4.9.3
      */
-    public @NotNull String missingWorldText(@NotNull AngelChestScan scan) {
+    public static @NotNull String missingWorldText(@NotNull AngelChestScan scan) {
         if (scan.total() == 0) {
             return "No files found in plugins/AngelChest/angelchests. Returning as none.";
         }
@@ -410,7 +416,6 @@ public class ImportManager {
         sb.append("  (These graves cannot import until the referenced world exists)\n");
 
         for (AngelChestEntry entry : missing) {
-            BlockCoords coords = entry.coords();
             sb.append("• File: ").append(entry.file().getName()).append('\n');
             sb.append("    Owner: ").append(nullOr(entry.ownerName()))
                     .append("  UUID: ").append(nullOr(entry.ownerUUID())).append('\n');
@@ -418,9 +423,7 @@ public class ImportManager {
                     .append(" secondary=").append(nullOr(entry.worldUUIDSecondary())).append('\n');
             sb.append("    World names: file=").append(nullOr(entry.worldNameFromFile()))
                     .append(" logfile=").append(nullOr(entry.worldNameFromLogfile())).append('\n');
-            sb.append("    Coords: ").append(coords != null ? coords.x() : "-").append(',')
-                    .append(coords != null ? coords.y() : "-").append(',')
-                    .append(coords != null ? coords.z() : "-").append('\n');
+            sb.append("    Coords: ").append(nullOr(entry.x())).append(',').append(nullOr(entry.y())).append(',').append(nullOr(entry.z())).append('\n');
         }
 
         return sb.toString();
@@ -447,7 +450,7 @@ public class ImportManager {
             FileConfiguration ac = loadFile(file);
             if (ac == null) {
                 entries.add(new AngelChestEntry(file, AngelChestEntry.Status.INVALID_YAML,
-                        null, null, null, null, null, null, null, null));
+                        null, null, null, null, null, null, null, null, null, null, null));
                 continue;
             }
 
@@ -459,13 +462,14 @@ public class ImportManager {
             }
 
             World world = resolveWorldForScan(ac, file.getName(), worlds);
-            BlockCoords coords = resolveCoords(ac, file.getName());
+            Integer[] axes = resolveAxes(ac, file.getName());
+            BlockCoords coords = toCoords(axes);
 
             AngelChestEntry.Status status = world == null ? AngelChestEntry.Status.MISSING_WORLD
                     : coords == null ? AngelChestEntry.Status.MISSING_COORDS
                     : AngelChestEntry.Status.IMPORTABLE;
 
-            entries.add(new AngelChestEntry(file, status, world, coords, ownerName,
+            entries.add(new AngelChestEntry(file, status, world, coords, axes[0], axes[1], axes[2], ownerName,
                     uuidOrNull(ac.getString("owner", null)),
                     uuidOrNull(ac.getString("worldid", null)),
                     uuidOrNull(ac.getString("customblock.location.worldid", null)),
@@ -913,6 +917,28 @@ public class ImportManager {
      * @return the coordinates, or {@code null} if any axis cannot be resolved
      */
     private static @Nullable BlockCoords resolveCoords(@NotNull FileConfiguration ac, @NotNull String fileName) {
+        return toCoords(resolveAxes(ac, fileName));
+    }
+
+    /**
+     * Combines per-axis coordinates into block coordinates.
+     *
+     * @param axes {@code [x, y, z]}, each possibly {@code null}
+     * @return the coordinates, or {@code null} if any axis is {@code null}
+     */
+    private static @Nullable BlockCoords toCoords(@NotNull Integer[] axes) {
+        return axes[0] != null && axes[1] != null && axes[2] != null ? new BlockCoords(axes[0], axes[1], axes[2]) : null;
+    }
+
+    /**
+     * Resolves each axis of an AngelChest file's block coordinates independently: {@code x/y/z}, then
+     * {@code customblock.location.*}, then the file name.
+     *
+     * @param ac       the AngelChest configuration
+     * @param fileName the file name
+     * @return {@code [x, y, z]}; an axis is {@code null} if no source provides it
+     */
+    private static @NotNull Integer[] resolveAxes(@NotNull FileConfiguration ac, @NotNull String fileName) {
         Integer x = ac.isInt("x") ? ac.getInt("x") : null;
         Integer y = ac.isInt("y") ? ac.getInt("y") : null;
         Integer z = ac.isInt("z") ? ac.getInt("z") : null;
@@ -930,7 +956,7 @@ public class ImportManager {
             }
         }
 
-        return x != null && y != null && z != null ? new BlockCoords(x, y, z) : null;
+        return new Integer[]{x, y, z};
     }
 
     /**

@@ -47,9 +47,6 @@ class AngelChestScanTest {
             Map.of(worldId, world, netherId, nether),
             Map.of("world", world, "nether", nether));
 
-    /** Renderer host; the renderers do not touch the plugin. */
-    private final ImportManager importManager = new ImportManager(null);
-
     /** Directory holding the YAML fixtures. */
     @TempDir
     Path dir;
@@ -102,8 +99,8 @@ class AngelChestScanTest {
         AngelChestScan scan = ImportManager.scan(new File[0], worlds);
 
         assertEquals(0, scan.total());
-        assertTrue(importManager.statusText(scan).startsWith("No files found"));
-        assertTrue(importManager.missingWorldText(scan).startsWith("No files found"));
+        assertTrue(ImportManager.statusText(scan).startsWith("No files found"));
+        assertTrue(ImportManager.missingWorldText(scan).startsWith("No files found"));
     }
 
     /**
@@ -211,7 +208,7 @@ class AngelChestScanTest {
         File present = fixture("chest.yml", "worldid: " + worldId + "\nx: 1\ny: 2\nz: 3\n");
 
         AngelChestScan scan = ImportManager.scan(new File[]{missing, present}, worlds);
-        String text = importManager.missingWorldText(scan);
+        String text = ImportManager.missingWorldText(scan);
 
         assertEquals(List.of(scan.entries().get(0)), scan.missingWorldEntries());
         assertEquals("AngelChest Missing-World Report\n"
@@ -225,7 +222,24 @@ class AngelChestScanTest {
 
         AngelChestScan allPresent = ImportManager.scan(new File[]{present}, worlds);
         assertEquals("AngelChest Missing-World Report\n  None — all referenced worlds are present.",
-                importManager.missingWorldText(allPresent));
+                ImportManager.missingWorldText(allPresent));
+    }
+
+    /**
+     * Verifies: missing world text renders partial coordinates per axis.
+     */
+    @Test
+    void missingWorldTextRendersPartialCoordinatesPerAxis() throws IOException {
+        File partial = fixture("partial.yml", "worldid: " + UUID.randomUUID() + "\nx: 5\ncustomblock:\n  location:\n    z: -2\n");
+
+        AngelChestScan scan = ImportManager.scan(new File[]{partial}, worlds);
+        AngelChestEntry entry = scan.entries().get(0);
+
+        assertNull(entry.coords());
+        assertEquals(5, entry.x());
+        assertNull(entry.y());
+        assertEquals(-2, entry.z());
+        assertTrue(ImportManager.missingWorldText(scan).contains("    Coords: 5,-,-2\n"));
     }
 
     /**
@@ -250,7 +264,7 @@ class AngelChestScanTest {
                 + "  Valid YAML: 3\n"
                 + "  Importable: 2\n"
                 + "  Missing world: 1\n"
-                + "  Invalid YAML: 1", importManager.statusText(scan));
+                + "  Invalid YAML: 1", ImportManager.statusText(scan));
     }
 
     /**
@@ -265,6 +279,6 @@ class AngelChestScanTest {
         AngelChestScan scan = ImportManager.scan(new File[]{noCoords}, worlds);
 
         assertEquals(0, scan.importable());
-        assertTrue(importManager.statusText(scan).contains("  Importable: 1\n"));
+        assertTrue(ImportManager.statusText(scan).contains("  Importable: 1\n"));
     }
 }

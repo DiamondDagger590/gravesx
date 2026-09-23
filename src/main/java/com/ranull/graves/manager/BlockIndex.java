@@ -39,7 +39,6 @@ final class BlockIndex {
      * Idempotent. Blocks without a grave UUID or without a world are ignored.
      *
      * @param blockData the block to record
-     * @since 2026.4.9.3
      */
     void add(@NotNull BlockData blockData) {
         UUID graveUUID = blockData.getGraveUUID();
@@ -65,7 +64,6 @@ final class BlockIndex {
      * Forgets {@code blockData}. No-op if unknown or if a different {@code BlockData} now occupies its key.
      *
      * @param blockData the block to forget
-     * @since 2026.4.9.3
      */
     void remove(@NotNull BlockData blockData) {
         BlockKey key = BlockKey.of(blockData.getLocation());
@@ -79,8 +77,6 @@ final class BlockIndex {
 
     /**
      * Empties both directions of the index.
-     *
-     * @since 2026.4.9.3
      */
     void clear() {
         byGrave.clear();
@@ -92,7 +88,6 @@ final class BlockIndex {
      *
      * @param graveUUID the grave UUID; may be {@code null}
      * @return the recorded blocks; never {@code null}, empty when the grave is {@code null} or unknown
-     * @since 2026.4.9.3
      */
     @NotNull
     List<BlockData> forGrave(@Nullable UUID graveUUID) {
@@ -105,7 +100,6 @@ final class BlockIndex {
      *
      * @param key the block position; may be {@code null}
      * @return the recorded block, or {@code null} if none (or {@code key} is {@code null})
-     * @since 2026.4.9.3
      */
     @Nullable
     BlockData at(@Nullable BlockKey key) {

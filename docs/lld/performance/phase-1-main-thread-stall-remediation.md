@@ -59,7 +59,10 @@ This phase removes the four main-thread cost centres identified by the September
 - `SafeLocationManager` fluid-column O(depth²) rescan
 - The remaining (non-hot-path) debug string conversions
 
-**Configuration, changelog, migration:** no config keys are added or changed; no data migration is required; the changelog entries are the two declared behaviour changes (D6, D12) and the deprecations in [§5](#5-deprecations-and-deletions).
+**Configuration, changelog, migration:** no config keys are added or changed; no data migration is required; the changelog entries are the two declared behaviour changes (D6, D12) and the deprecations in [§5](#5-deprecations-and-deletions), plus two AngelChest import notes found in the implementation audit:
+
+- Corrupt AngelChest YAML files are now reported as invalid and skipped. Previously `YamlConfiguration.loadConfiguration` returned an empty configuration for them, so they were counted as valid and imported as empty graves when the file name was parseable.
+- The missing-world report still prints coordinates per axis (`-` for an axis no source provides); `AngelChestEntry` carries the three nullable axes alongside the all-or-nothing `BlockCoords` used for import.
 
 ---
 
@@ -1186,8 +1189,12 @@ The old world check (`:1514-1528`) called a grave "missing" whenever no entity s
 
 1. Any of the grave's **recorded** blocks (`getBlockDataForGrave`, which honours `block.offset.*`) is physically non-empty in the world → **placed**.
 2. No recorded block, but the block at the death location is a head → record it via `createBlock` and → **placed**.
-3. An entity sits inside the ±0.49 box (hologram marker, armor stand, corpse) → **placed**.
+3. An entity **other than a GravesX hologram** sits inside the ±0.49 box (armor stand, corpse) → **placed**. Hologram lines (ArmorStand or TextDisplay tagged `graveHologram` or carrying `GraveHologramKeys.GRAVE_UUID`) are excluded: with the default offsets a grave's own hologram sits on the box edge, so counting it would keep a grave whose block was wiped from ever being restored.
 4. Otherwise → **missing**.
+
+When a missing grave is restored, the placement task first calls `HologramManager.removeHologram(grave)` to clear any hologram entities that survived, then `placeGrave`, so the restore never stacks a second set of holograms (implementation audit).
+
+If the world check has to be scheduled (the caller does not own the death location's thread), a `runTaskLater(location, () -> result.complete(true), PLACEMENT_CHECK_TIMEOUT_TICKS = 100)` fallback completes the future as "placed" should the region task be dropped, so `allOf(checks)` — and with it `restorePassInFlight` — can never be stranded (D11).
 
 Graves whose death chunk is unloaded are reported as placed for this pass **without** caching into `knownGraves`, so they are re-evaluated cheaply once the chunk loads instead of forcing a chunk load per grave per pass (review HIGH-1c, HIGH-3a).
 
@@ -1228,15 +1235,23 @@ public @NotNull CompletableFuture<Boolean> isGravePlacedAsync(@Nullable Grave gr
                 result.complete(true);
                 return;
             }
-            result.complete(!location.getWorld().getNearbyEntities(location, 0.49, 0.49, 0.49).isEmpty());
+            boolean occupied = false;
+            for (Entity entity : location.getWorld().getNearbyEntities(location, 0.49, 0.49, 0.49)) {
+                if (!isGraveHologram(entity)) { occupied = true; break; } // a grave's own hologram is not presence
+            }
+            result.complete(occupied);
         } catch (Throwable t) {
             plugin.debugMessage(() -> "isGravePlaced world check failed for " + id + " → treating as placed. Reason: " + t, 2);
             result.complete(true);
         }
     };
 
-    if (plugin.getSchedulerManager().isRegionThread(location)) worldCheck.run();
-    else plugin.getSchedulerManager().execute(location, worldCheck);
+    if (plugin.getSchedulerManager().isRegionThread(location)) {
+        worldCheck.run();
+    } else {
+        plugin.getSchedulerManager().execute(location, worldCheck);
+        plugin.getSchedulerManager().runTaskLater(location, () -> result.complete(true), PLACEMENT_CHECK_TIMEOUT_TICKS); // D11
+    }
 
     return result.thenApply(placed -> {
         if (placed) knownGraves.add(id);
@@ -1293,6 +1308,7 @@ private void restoreMissingGraves(@NotNull Collection<Grave> excluded) {
                 plugin.getSchedulerManager().execute(loc, () -> {
                     if (knownGraves.contains(id) || graveMap.get(id) != grave) return; // placed or removed meanwhile
                     try {
+                        plugin.getHologramManager().removeHologram(grave); // clear surviving holograms first
                         placeGrave(loc, grave);
                         knownGraves.add(id);
                     } catch (Throwable t) {
@@ -1928,9 +1944,9 @@ Uses `@TempDir` with YAML fixtures and a `WorldSnapshot` built directly from moc
 
 10. **`resolveEntities` completes on the owning thread of an explicit anchor.** A future that completes "on whichever thread finished last" is a footgun on a base class inherited by five third-party integrations. `CompatibilityTeleport.completeOnRegion` already establishes the codebase's answer: complete deterministically on the region thread. The fast path stays inline, so today's synchronous ordering is preserved where it matters.
 
-11. **Resolution has a 100-tick completion fallback.** On Folia a failed `getChunkAtAsync` is logged and its task dropped (`ChunkManager.java:156-163`), and a region that never ticks never runs its tasks; without a fallback the continuation — and the DB row deletes behind it — would be stranded. `runTaskLater(anchor, …)` completes with what was found, on the same owning thread as the normal path; `complete` is idempotent so the common case is unaffected.
+11. **Resolution has a 100-tick completion fallback.** On Folia a failed `getChunkAtAsync` is logged and its task dropped (`ChunkManager.java:156-163`), and a region that never ticks never runs its tasks; without a fallback the continuation — and the DB row deletes behind it — would be stranded. `runTaskLater(anchor, …)` completes with what was found, on the same owning thread as the normal path; `complete` is idempotent so the common case is unaffected. The same 100-tick fallback applies to the scheduled world check in `isGravePlacedAsync`, which completes as "placed" so a dropped region task cannot strand a `restoreMissingGraves` pass.
 
-12. **`check-missing-graves` becomes live, with a corrected heuristic — behaviour change #2.** The feature has never actually placed a grave on Paper (F2). Making the world check real without fixing it would re-place every grave. The corrected rule treats a grave as placed when any of its recorded blocks is non-empty, when a head block is present at the death location, or when a marker entity is present; only a grave with none of those is restored. Unloaded chunks are skipped rather than force-loaded. Placement is guarded against the grave having been removed while its check was in flight, and graves being removed in the same tick are excluded up front.
+12. **`check-missing-graves` becomes live, with a corrected heuristic — behaviour change #2.** The feature has never actually placed a grave on Paper (F2). Making the world check real without fixing it would re-place every grave. The corrected rule treats a grave as placed when any of its recorded blocks is non-empty, when a head block is present at the death location, or when an entity other than a GravesX hologram is present (the grave's own holograms are excluded, since they would otherwise mask a wiped block); only a grave with none of those is restored, and the restore clears any surviving hologram entities before placing so no second hologram stack is spawned. Unloaded chunks are skipped rather than force-loaded. Placement is guarded against the grave having been removed while its check was in flight, and graves being removed in the same tick are excluded up front.
 
 13. **Import orchestration, the in-flight flag and the batch size live on `ImportManager`.** `ImportManager` is recreated on reload; `GravesCommand` is not. A flag on the command would outlive the manager it guards. The command validates, renders and delegates. Batch size is a constant (25/tick keeps a 1,000-grave import at ~40 ticks); a config knob for a one-time admin action is not warranted.
 
@@ -1975,6 +1991,12 @@ Uses `@TempDir` with YAML fixtures and a `WorldSnapshot` built directly from moc
 10. **`chunkMap` is still a plain `HashMap`** written from the async block loader through scheduled region tasks. Not touched by this LLD; if the loader race in D2 is real for graves it is likely real for chunks too.
 
 11. **`resolveEntities` fallback on a Folia region that never ticks.** The 100-tick fallback is itself a region task on `anchor`; if `anchor`'s region never ticks, neither runs. Nothing on the main thread is blocked, but the DB row deletes behind that continuation are deferred until the region ticks. Acceptable; noted so nobody "fixes" it by completing on the global thread and breaking D10.
+
+12. **`GraveIndex` keys on the stored world UID.** `LocationData.toBlockKey()` uses the UID stored with the grave, while `Grave.getLocationDeath()` falls back to the world key and then the name. If a world is deleted and re-created with a new `uid.dat` while its graves are cached, death-block lookups (`getGrave(Block/Location)`, `getGravesAt`) miss until the graves are reloaded from the database; placed-block lookups are unaffected because `BlockIndex` keys on the live `Location`.
+
+13. **`/graves reload` mid-import.** The old `ImportManager`'s batches keep running against the new managers while the new instance reports not-in-flight, so a second confirm during that window could double-import. Accepted for now: the window is the length of one import, and the import is a one-time admin action.
+
+14. **`UUIDUtil.getUUID(null)` throws `NullPointerException`.** `ImportManager` works around it with a private null-safe wrapper (`uuidOrNull`); the null check should move into `UUIDUtil.getUUID` in a follow-up and the wrapper be removed.
 
 ---
 

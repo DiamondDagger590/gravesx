@@ -1676,16 +1676,9 @@ public class DataManager {
                 AtomicInteger remaining = new AtomicInteger(byChunk.size());
 
                 for (List<BlockWork> group : byChunk.values()) {
-                    if (group.isEmpty()) {
-                        if (remaining.decrementAndGet() == 0) {
-                            plugin.getCacheManager().rebuildBlockIndex();
-                        }
-                        continue;
-                    }
-
                     Location anchor = group.get(0).loc.clone();
 
-                    plugin.getSchedulerManager().execute(anchor, () -> {
+                    Runnable applyGroup = () -> {
                         try {
                             for (BlockWork w : group) {
                                 try {
@@ -1700,7 +1693,17 @@ public class DataManager {
                                 plugin.getCacheManager().rebuildBlockIndex();
                             }
                         }
-                    });
+                    };
+
+                    try {
+                        plugin.getSchedulerManager().execute(anchor, applyGroup);
+                    } catch (Throwable t) {
+                        plugin.getLogger().warning("Failed to schedule block cache load at " + anchor + ": " + t.getMessage());
+                        plugin.logStackTrace(t);
+                        if (remaining.decrementAndGet() == 0) {
+                            plugin.getCacheManager().rebuildBlockIndex();
+                        }
+                    }
                 }
 
                 plugin.getLogger().info("Queued " + scheduledCount + " Blocks into the Block Map Cache (batched by chunk).");
