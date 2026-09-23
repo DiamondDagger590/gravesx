@@ -1409,7 +1409,7 @@ public class EntityManager extends EntityDataManager {
      * @param grave the grave whose entities to remove.
      */
     public void removeEntity(Grave grave) {
-        removeEntity(getEntityDataMap(getLoadedEntityDataList(grave)));
+        resolveEntities(getLoadedEntityDataList(grave), grave.getLocationDeath()).thenAccept(this::removeEntity);
     }
 
     /**

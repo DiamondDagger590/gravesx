@@ -5,8 +5,10 @@ import com.ranull.graves.compatibility.CompatibilityInventoryView;
 import com.ranull.graves.data.BlockData;
 import com.ranull.graves.data.BlockKey;
 import com.ranull.graves.data.ChunkData;
+import com.ranull.graves.data.ChunkKey;
 import com.ranull.graves.data.EntityData;
 import com.ranull.graves.data.HologramData;
+import com.ranull.graves.data.LocationData;
 import com.ranull.graves.integration.MiniMessage;
 import com.ranull.graves.inventory.GraveList;
 import com.ranull.graves.inventory.GraveMenu;
@@ -33,10 +35,13 @@ import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.plugin.Plugin;
+import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 import java.lang.reflect.Method;
@@ -59,6 +64,14 @@ public class GraveManager {
      * Determine all graves that have a grave present. Ignore further if the grave exists. This helps with massive graves.
      */
     private final Set<UUID> knownGraves = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    /**
+     * Set while a {@link #restoreMissingGraves(Collection)} pass is still resolving its placement checks, so passes
+     * never overlap.
+     *
+     * @since 2026.4.9.3
+     */
+    private final AtomicBoolean restorePassInFlight = new AtomicBoolean(false);
 
     /**
      * Initializes the GraveManager with the specified plugin instance.
@@ -100,7 +113,7 @@ public class GraveManager {
         removeExpiredElements(graveRemoveList, entityDataRemoveList, blockDataRemoveList);
 
         if (!graveRemoveList.isEmpty() && plugin.getConfigManager().getConfigSection("grave.check-missing-graves", graveRemoveList.getFirst()).getBoolean("grave.check-missing-graves", false)) {
-            restoreMissingGraves();
+            restoreMissingGraves(graveRemoveList);
             plugin.getHologramManager().purgeLingeringHolograms();
         }
     }
@@ -1394,75 +1407,69 @@ public class GraveManager {
 
     /**
      * Restores graves that are in cache but missing from the world.
+     * <p>
+     * Placement checks run through {@link #isGravePlacedAsync(Grave)} and never block. A grave is only
+     * placed if it is still the cached instance both when its check completes and when the scheduled
+     * placement runs, so a grave removed meanwhile is never resurrected. At most one pass is in flight.
+     * </p>
+     *
+     * @param excluded graves being removed this tick; never restored
      */
-    private void restoreMissingGraves() {
+    private void restoreMissingGraves(@NotNull Collection<Grave> excluded) {
         Map<UUID, Grave> graveMap = plugin.getCacheManager().getGraveMap();
-        if (graveMap == null || graveMap.isEmpty()) return;
+        if (graveMap.isEmpty()) return;
+        if (!restorePassInFlight.compareAndSet(false, true)) return; // previous pass still resolving
 
-        for (Grave grave : graveMap.values()) {
-            if (grave == null) continue;
+        List<CompletableFuture<?>> checks = new ArrayList<>();
+        try {
+            for (Grave grave : new ArrayList<>(graveMap.values())) {
+                if (grave == null || excluded.contains(grave)) continue;
+                UUID id = grave.getUUID();
+                if (knownGraves.contains(id)) continue;
 
-            UUID id = grave.getUUID();
-            if (knownGraves.contains(id)) continue;
+                Location loc = grave.getLocationDeath();
+                if (loc == null || loc.getWorld() == null) {
+                    plugin.debugMessage("Cannot restore grave " + id + ": invalid location.", 2);
+                    continue;
+                }
 
-            Location loc;
-            try {
-                loc = grave.getLocationDeath();
-            } catch (Throwable t) {
-                plugin.debugMessage("Failed to get location for grave " + id + ": " + t.getMessage(), 2);
-                continue;
+                checks.add(isGravePlacedAsync(grave).thenAccept(placed -> {
+                    if (placed || graveMap.get(id) != grave) return;
+                    plugin.debugMessage("Grave " + id + " missing from world. Scheduling placement.", 1);
+                    plugin.getSchedulerManager().execute(loc, () -> {
+                        if (knownGraves.contains(id) || graveMap.get(id) != grave) return; // placed or removed meanwhile
+                        try {
+                            placeGrave(loc, grave);
+                            knownGraves.add(id);
+                        } catch (Throwable t) {
+                            plugin.getLogger().warning("Failed to place grave " + id + ": " + t.getMessage());
+                            plugin.logStackTrace(t);
+                        }
+                    });
+                }));
             }
-
-            if (loc == null || loc.getWorld() == null) {
-                plugin.debugMessage("Cannot restore grave " + id + ": invalid location.", 2);
-                continue;
-            }
-
-            boolean placed;
-            try {
-                placed = isGravePlaced(grave);
-            } catch (Throwable t) {
-                plugin.debugMessage("isGravePlaced threw for grave " + id + ": " + t.getMessage(), 2);
-                placed = false;
-            }
-
-            if (!placed) {
-                plugin.debugMessage("Grave " + id + " missing from world. Scheduling placement.", 1);
-
-                Location scheduleAnchor = loc;
-                Grave scheduleGrave = grave;
-
-                plugin.getSchedulerManager().execute(scheduleAnchor, () -> {
-                    try {
-                        if (isGravePlaced(scheduleGrave)) return; // double-check inside scheduler
-                        plugin.getGraveManager().placeGrave(scheduleAnchor, scheduleGrave);
-                        knownGraves.add(id); // mark as successfully placed
-                    } catch (Throwable t) {
-                        plugin.getLogger().warning("Failed to place grave " + id + ": " + t.getMessage());
-                        plugin.logStackTrace(t);
-                    }
-                });
+        } catch (Throwable t) {
+            plugin.getLogger().warning("restoreMissingGraves aborted: " + t.getMessage());
+            plugin.logStackTrace(t);
+        } finally {
+            if (checks.isEmpty()) {
+                restorePassInFlight.set(false);
             } else {
-                knownGraves.add(id);
+                CompletableFuture.allOf(checks.toArray(new CompletableFuture[0]))
+                        .whenComplete((v, t) -> restorePassInFlight.set(false));
             }
         }
     }
 
     /**
-     * Determines if the grave is placed in the world by checking for any physical
-     * block or entity presence at the grave's location. This includes checking for
-     * plugin-provided furniture/blocks and NPC corpses.
+     * Provider and integration presence checks. Synchronous; never blocks. Adds the grave to
+     * {@link #knownGraves} on success.
      *
-     * @param grave the grave to check.
-     * @return true if a block or entity is present at the grave's location (including integrations).
+     * @param grave the grave to check
+     * @return {@code true} if a grave provider or an integration reports the grave as placed
      */
-    public boolean isGravePlaced(Grave grave) {
-        if (grave == null) return false;
+    private boolean isPlacedByProviderOrIntegration(@NotNull Grave grave) {
         UUID id = grave.getUUID();
-        if (knownGraves.contains(id)) return true;
-
-        Location location = grave.getLocationDeath();
-        if (location == null || location.getWorld() == null) return false;
 
         try {
             String pid = null;
@@ -1510,35 +1517,92 @@ public class GraveManager {
             plugin.getLogger().warning("Integration check failed in isGravePlaced: " + t.getMessage());
         }
 
+        return false;
+    }
+
+    /**
+     * Determines whether a grave is physically present in the world. Provider and integration checks
+     * run synchronously; the world check runs inline when the caller owns the death location's thread
+     * and is otherwise scheduled there. The future completes on that owning thread. Never blocks.
+     * <p>
+     * A grave counts as placed when any of its recorded blocks is non-empty, when a head block sits at
+     * its death location (which is then recorded), or when an entity sits inside the death block
+     * (hologram marker, armor stand, corpse). A grave whose death chunk is unloaded is reported as placed
+     * without being cached, so it is re-evaluated once the chunk loads.
+     * </p>
+     *
+     * @param grave the grave to check; may be {@code null}
+     * @return a future completing with {@code true} if the grave is present (or cannot be checked right now)
+     * @since 2026.4.9.3
+     */
+    public @NotNull CompletableFuture<Boolean> isGravePlacedAsync(@Nullable Grave grave) {
+        if (grave == null) return CompletableFuture.completedFuture(false);
+        UUID id = grave.getUUID();
+        if (knownGraves.contains(id)) return CompletableFuture.completedFuture(true);
+
+        LocationData deathData = grave.getLocationDeathData();
+        BlockKey key = deathData != null ? deathData.toBlockKey() : null;
+        Location location = key != null ? grave.getLocationDeath() : null;
+        if (location == null || location.getWorld() == null) return CompletableFuture.completedFuture(false);
+
+        if (isPlacedByProviderOrIntegration(grave)) return CompletableFuture.completedFuture(true);
+
+        ChunkKey chunk = key.chunk();
+        if (!location.getWorld().isChunkLoaded(chunk.x(), chunk.z())) {
+            return CompletableFuture.completedFuture(true); // not cached: re-evaluated once the chunk is loaded
+        }
+
         CompletableFuture<Boolean> result = new CompletableFuture<>();
-        plugin.getSchedulerManager().execute(location, () -> {
+        Runnable worldCheck = () -> {
             try {
-                Collection<Entity> nearby = location.getWorld().getNearbyEntities(location, 0.49, 0.49, 0.49);
-                if (!nearby.isEmpty()) {
-                    result.complete(true);
-                    return;
+                for (BlockData blockData : plugin.getCacheManager().getBlockDataForGrave(id)) {
+                    if (!blockData.getLocation().getBlock().isEmpty()) {
+                        result.complete(true);
+                        return;
+                    }
                 }
 
                 Block block = location.getBlock();
                 if (isHeadBlock(block)) {
-                    plugin.getBlockManager().createBlock(location, grave);
+                    if (plugin.getCacheManager().getBlockDataAt(key) == null) {
+                        plugin.getBlockManager().createBlock(location, grave);
+                    }
+                    result.complete(true);
+                    return;
                 }
 
-                result.complete(false);
+                result.complete(!location.getWorld().getNearbyEntities(location, 0.49, 0.49, 0.49).isEmpty());
             } catch (Throwable t) {
-                plugin.debugMessage("isGravePlaced region work failed for " + id + " → treating as placed. Reason: " + t, 2);
+                plugin.debugMessage("isGravePlaced world check failed for " + id + " -> treating as placed. Reason: " + t, 2);
                 result.complete(true);
             }
-        });
+        };
 
-        try {
-            boolean placed = result.get(100, TimeUnit.MILLISECONDS);
+        if (plugin.getSchedulerManager().isRegionThread(location)) {
+            worldCheck.run();
+        } else {
+            plugin.getSchedulerManager().execute(location, worldCheck);
+        }
+
+        return result.thenApply(placed -> {
             if (placed) knownGraves.add(id);
             return placed;
-        } catch (Exception e) {
-            plugin.debugMessage("isGravePlaced timed out or failed for " + id + " → assuming placed.", 2);
-            return true;
-        }
+        });
+    }
+
+    /**
+     * Determines if the grave is placed in the world. This method never blocks; when the world check
+     * cannot run inline it returns {@code true} ("assume placed"), the default the old timeout path used.
+     *
+     * @param grave the grave to check.
+     * @return true if the grave is known to be present, or its presence cannot be determined inline.
+     * @deprecated Deprecated as of 2026.4.9.3 and scheduled for removal in 2027.4.9.1. Use
+     * {@link #isGravePlacedAsync(Grave)} instead.
+     */
+    @Deprecated(since = "2026.4.9.3", forRemoval = true)
+    @ApiStatus.ScheduledForRemoval(inVersion = "2027.4.9.1")
+    public boolean isGravePlaced(Grave grave) {
+        return isGravePlacedAsync(grave).getNow(true);
     }
 
     private boolean isHeadBlock(Block block) {

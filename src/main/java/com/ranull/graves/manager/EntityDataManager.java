@@ -1,19 +1,21 @@
 package com.ranull.graves.manager;
 
 import com.ranull.graves.Graves;
+import com.ranull.graves.data.BlockKey;
 import com.ranull.graves.data.ChunkData;
+import com.ranull.graves.data.ChunkKey;
 import com.ranull.graves.data.EntityData;
 import com.ranull.graves.type.Grave;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.entity.Entity;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Method;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Manages entity data and interactions within the Graves plugin.
@@ -27,6 +29,13 @@ public class EntityDataManager {
      * </p>
      */
     private final Graves plugin;
+
+    /**
+     * Ticks after which an unfinished entity resolution completes with whatever was found.
+     *
+     * @since 2026.4.9.3
+     */
+    private static final long RESOLVE_TIMEOUT_TICKS = 100L;
 
     private static Method SERVER_GET_ENTITY;
 
@@ -152,7 +161,144 @@ public class EntityDataManager {
     }
 
     /**
-     * Retrieves a map of entity data and their corresponding entities from a list of entity data.
+     * Resolves live entities for the given entity data without blocking the calling thread.
+     * <p>
+     * Loaded entities are resolved synchronously via {@code Server#getEntity(UUID)}. Entities whose
+     * chunk is <em>unloaded</em> are resolved after that chunk is loaded via
+     * {@link dev.cwhead.GravesX.manager.ChunkManager#ensureLoadedAndExecute}; those loads are grouped so each
+     * chunk is loaded once. An entity whose chunk is loaded but which {@code getEntity} cannot find no longer
+     * exists and is omitted.
+     * </p>
+     * <p>
+     * <b>Completion thread:</b> the future always completes on the owning thread of {@code anchor}
+     * (the primary thread, or {@code anchor}'s region thread on Folia). When everything resolves
+     * synchronously and the caller already owns that thread, the returned future is complete and
+     * continuations run inline. Continuations may therefore touch world state at {@code anchor};
+     * mutations to entities elsewhere must still be dispatched with {@code executeRegion}.
+     * </p>
+     * <p>
+     * If a chunk load never reports back (Folia region that does not tick, failed async load), the
+     * future completes after {@value #RESOLVE_TIMEOUT_TICKS} ticks with the entities found so far.
+     * </p>
+     *
+     * @param entityDataList entity data to resolve; {@code null} entries are skipped
+     * @param anchor         location whose owning thread the future completes on; typically the grave's death location
+     * @return a future completing with the entity data &rarr; entity map for every entity that still exists
+     * @since 2026.4.9.3
+     */
+    public @NotNull CompletableFuture<Map<EntityData, Entity>> resolveEntities(@NotNull Collection<EntityData> entityDataList,
+                                                                               @Nullable Location anchor) {
+        Map<EntityData, Entity> resolved = new ConcurrentHashMap<>();
+        Map<ChunkKey, List<EntityData>> pendingByChunk = new HashMap<>();
+
+        for (EntityData entityData : entityDataList) {
+            if (entityData == null || entityData.getUUIDEntity() == null) {
+                continue;
+            }
+
+            Entity found = fastGetEntity(entityData.getUUIDEntity());
+            if (found != null) {
+                resolved.put(entityData, found);
+                continue;
+            }
+
+            Location location = entityData.getLocation();
+            BlockKey key = BlockKey.of(location);
+            if (key == null) {
+                continue;
+            }
+
+            ChunkKey chunk = key.chunk();
+            if (location.getWorld().isChunkLoaded(chunk.x(), chunk.z())) {
+                continue; // loaded and not found => gone
+            }
+
+            pendingByChunk.computeIfAbsent(chunk, k -> new ArrayList<>()).add(entityData);
+        }
+
+        CompletableFuture<Map<EntityData, Entity>> future = new CompletableFuture<>();
+
+        if (pendingByChunk.isEmpty()) {
+            completeOnOwningThread(anchor, future, resolved);
+            return future;
+        }
+
+        AtomicInteger remaining = new AtomicInteger(pendingByChunk.size());
+        Runnable onChunkDone = () -> {
+            if (remaining.decrementAndGet() == 0) {
+                completeOnOwningThread(anchor, future, resolved);
+            }
+        };
+
+        for (Map.Entry<ChunkKey, List<EntityData>> entry : pendingByChunk.entrySet()) {
+            List<EntityData> group = entry.getValue();
+            Location groupAnchor = group.get(0).getLocation();
+            ChunkKey chunk = entry.getKey();
+
+            boolean scheduled = plugin.getChunkManager().ensureLoadedAndExecute(groupAnchor, groupAnchor, false, false, () -> {
+                try {
+                    Map<UUID, Entity> byId = new HashMap<>();
+                    for (Entity entity : groupAnchor.getWorld().getChunkAt(chunk.x(), chunk.z()).getEntities()) {
+                        byId.put(entity.getUniqueId(), entity);
+                    }
+
+                    for (EntityData entityData : group) {
+                        Entity entity = byId.get(entityData.getUUIDEntity());
+                        if (entity == null) {
+                            entity = fastGetEntity(entityData.getUUIDEntity());
+                        }
+
+                        if (entity != null) {
+                            resolved.put(entityData, entity);
+                        }
+                    }
+                } catch (Throwable t) {
+                    plugin.getLogger().severe(t.getMessage());
+                    plugin.logStackTrace(t);
+                } finally {
+                    onChunkDone.run();
+                }
+            });
+
+            if (!scheduled) {
+                onChunkDone.run(); // Folia without an async chunk API: nothing more we can do
+            }
+        }
+
+        // A load that never reports back must not strand the continuation.
+        if (anchor != null && anchor.getWorld() != null) {
+            plugin.getSchedulerManager().runTaskLater(anchor, () -> future.complete(resolved), RESOLVE_TIMEOUT_TICKS);
+        } else {
+            plugin.getSchedulerManager().runTaskLater(() -> future.complete(resolved), RESOLVE_TIMEOUT_TICKS);
+        }
+
+        return future;
+    }
+
+    /**
+     * Completes {@code future} on the owning thread of {@code anchor}: inline if already there, else via the
+     * region-aware scheduler. A {@code null} anchor (or one without a world) completes inline.
+     *
+     * @param anchor the location whose owning thread should complete the future; may be {@code null}
+     * @param future the future to complete
+     * @param value  the value to complete it with
+     */
+    private void completeOnOwningThread(@Nullable Location anchor,
+                                        @NotNull CompletableFuture<Map<EntityData, Entity>> future,
+                                        @NotNull Map<EntityData, Entity> value) {
+        if (anchor == null || anchor.getWorld() == null || plugin.getSchedulerManager().isRegionThread(anchor)) {
+            future.complete(value);
+        } else {
+            plugin.getSchedulerManager().execute(anchor, () -> future.complete(value));
+        }
+    }
+
+    /**
+     * Resolves the currently loaded entities for the given entity data.
+     * <p>
+     * <b>API note:</b> as of 2026.4.9.3 this never blocks and never loads chunks; it resolves loaded entities
+     * only. Use {@link #resolveEntities(Collection, Location)} when entities in unloaded chunks matter.
+     * </p>
      *
      * @param entityDataList the list of entity data to map.
      * @return the map of entity data and entities.
@@ -161,75 +307,13 @@ public class EntityDataManager {
         Map<EntityData, Entity> entityDataMap = new HashMap<>();
 
         for (EntityData entityData : entityDataList) {
-            if (entityData == null) {
+            if (entityData == null || entityData.getUUIDEntity() == null) {
                 continue;
             }
 
-            Location location = entityData.getLocation();
-            if (location == null) {
-                continue;
-            }
-
-            World world = location.getWorld();
-            if (world == null) {
-                continue;
-            }
-
-            UUID uuid = entityData.getUUIDEntity();
-            if (uuid == null) {
-                continue;
-            }
-
-            Entity found = fastGetEntity(uuid);
+            Entity found = fastGetEntity(entityData.getUUIDEntity());
             if (found != null) {
                 entityDataMap.put(entityData, found);
-                continue;
-            }
-
-            int cx = location.getBlockX() >> 4;
-            int cz = location.getBlockZ() >> 4;
-
-            final AtomicReference<Entity> ref = new AtomicReference<>(null);
-            final CountDownLatch latch = new CountDownLatch(1);
-
-            plugin.getChunkManager().ensureLoadedAndExecute(
-                    location,
-                    location,
-                    false,
-                    false,
-                    () -> {
-                        try {
-                            Entity quick = fastGetEntity(uuid);
-                            if (quick != null) {
-                                ref.set(quick);
-                                return;
-                            }
-
-                            Chunk chunk = world.getChunkAt(cx, cz);
-                            for (Entity e : chunk.getEntities()) {
-                                if (e != null && uuid.equals(e.getUniqueId())) {
-                                    ref.set(e);
-                                    break;
-                                }
-                            }
-                        } catch (Throwable t) {
-                            plugin.getLogger().severe(t.getMessage());
-                            plugin.logStackTrace(t);
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-            );
-
-            try {
-                latch.await(25L, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
-            Entity scanned = ref.get();
-            if (scanned != null) {
-                entityDataMap.put(entityData, scanned);
             }
         }
 
@@ -238,92 +322,31 @@ public class EntityDataManager {
 
     /**
      * Removes a list of entity data.
+     * <p>
+     * Resolves the entities without blocking (see {@link #resolveEntities(Collection, Location)}) and removes the
+     * records of every entity that still exists once resolution completes.
+     * </p>
      *
      * @param entityDataList the list of entity data to remove.
      */
     public void removeEntityData(List<EntityData> entityDataList) {
-        List<EntityData> removedEntityDataList = new ArrayList<>();
+        Location anchor = entityDataList.stream()
+                .filter(Objects::nonNull)
+                .map(EntityData::getLocation)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
 
-        for (EntityData entityData : entityDataList) {
-            if (entityData == null) {
-                continue;
-            }
-
-            Location location = entityData.getLocation();
-            if (location == null) {
-                continue;
-            }
-
-            World world = location.getWorld();
-            if (world == null) {
-                continue;
-            }
-
-            UUID uuid = entityData.getUUIDEntity();
-            if (uuid == null) {
-                continue;
-            }
-
-            Entity found = fastGetEntity(uuid);
-            if (found != null) {
-                removedEntityDataList.add(entityData);
-                continue;
-            }
-
-            int cx = location.getBlockX() >> 4;
-            int cz = location.getBlockZ() >> 4;
-
-            final AtomicReference<Entity> ref = new AtomicReference<>(null);
-            final CountDownLatch latch = new CountDownLatch(1);
-
-            plugin.getChunkManager().ensureLoadedAndExecute(
-                    location,
-                    location,
-                    false,
-                    false,
-                    () -> {
-                        try {
-                            Entity quick = fastGetEntity(uuid);
-                            if (quick != null) {
-                                ref.set(quick);
-                                return;
-                            }
-
-                            Chunk chunk = world.getChunkAt(cx, cz);
-                            for (Entity e : chunk.getEntities()) {
-                                if (e != null && uuid.equals(e.getUniqueId())) {
-                                    ref.set(e);
-                                    break;
-                                }
-                            }
-                        } catch (Throwable t) {
-                            plugin.getLogger().severe(t.getMessage());
-                            plugin.logStackTrace(t);
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-            );
-
-            try {
-                latch.await(25L, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
-            if (ref.get() != null) {
-                removedEntityDataList.add(entityData);
-            }
-        }
-
-        plugin.getDataManager().removeEntityData(removedEntityDataList);
+        resolveEntities(entityDataList, anchor).thenAccept(map ->
+                plugin.getDataManager().removeEntityData(new ArrayList<>(map.keySet())));
     }
 
     /**
-     * Try fast, version-friendly entity lookup:
-     *  - World#getEntity(UUID) when present (Paper/Bukkit newer)
-     *  - Server#getEntity(UUID) when present (Paper)
-     * Returns null if unavailable or not found.
+     * Looks up a loaded entity by UUID via {@code Server#getEntity(UUID)}, which is present on every supported
+     * server ({@code api-version} 1.13+) and finds every loaded entity.
+     *
+     * @param uuid the entity UUID
+     * @return the entity, or {@code null} if it is not loaded or the lookup is unavailable
      */
     private Entity fastGetEntity(UUID uuid) {
         try {
@@ -334,54 +357,5 @@ public class EntityDataManager {
         } catch (Throwable ignored) { /* continue */ }
 
         return null;
-    }
-
-    /**
-     * Scan a loaded chunk for a specific entity UUID on the correct region thread if possible.
-     * If a region scheduler is available, the scan is executed in-region and we await briefly.
-     * If not (legacy servers), we fall back to a direct on-thread scan (original behavior).
-     */
-    private Entity scanChunkForEntityRegionSafe(World world, int cx, int cz, UUID uuid, Location anchor) {
-        if (world == null || uuid == null) {
-            return null;
-        }
-
-        Location chunkLoc = new Location(world, (cx << 4) + 8, (anchor != null ? anchor.getY() : 64), (cz << 4) + 8);
-
-        Location useAnchor = (anchor != null ? anchor : chunkLoc);
-
-        final AtomicReference<Entity> ref = new AtomicReference<>(null);
-        final CountDownLatch latch = new CountDownLatch(1);
-
-        plugin.getChunkManager().ensureLoadedAndExecute(
-                useAnchor,
-                chunkLoc,
-                false,
-                false,
-                () -> {
-                    try {
-                        Chunk chunk = world.getChunkAt(cx, cz);
-                        for (Entity e : chunk.getEntities()) {
-                            if (uuid.equals(e.getUniqueId())) {
-                                ref.set(e);
-                                break;
-                            }
-                        }
-                    } catch (Throwable t) {
-                        plugin.getLogger().severe(t.getMessage());
-                        plugin.logStackTrace(t);
-                    } finally {
-                        latch.countDown();
-                    }
-                }
-        );
-
-        try {
-            latch.await(25L, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
-        return ref.get();
     }
 }
