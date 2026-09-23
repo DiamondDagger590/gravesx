@@ -1446,9 +1446,14 @@ public class GraveManager {
                     plugin.getSchedulerManager().execute(loc, () -> {
                         if (knownGraves.contains(id) || graveMap.get(id) != grave) return; // placed or removed meanwhile
                         try {
-                            // Clear any surviving hologram entities first so placement does not stack a second set.
-                            plugin.getHologramManager().removeHologram(grave);
-                            placeGrave(loc, grave);
+                            if (hasSurvivingHolograms(loc, id)) {
+                                // Only the block is gone: recreate it alone. Removing the survivors and then
+                                // placing a full grave would race two unordered scheduler queues (entity
+                                // removal sweeps vs. region spawns) and could delete the fresh holograms.
+                                plugin.getBlockManager().createBlock(loc, grave);
+                            } else {
+                                placeGrave(loc, grave);
+                            }
                             knownGraves.add(id);
                         } catch (Throwable t) {
                             plugin.getLogger().warning("Failed to place grave " + id + ": " + t.getMessage());
@@ -1642,6 +1647,52 @@ public class GraveManager {
 
         return plugin.getVersionManager().hasPersistentData()
                 && entity.getPersistentDataContainer().has(GraveHologramKeys.GRAVE_UUID, PersistentDataType.STRING);
+    }
+
+    /**
+     * Whether {@code entity} is a hologram line that belongs to the grave {@code graveUUID}. Holograms are
+     * tagged on spawn with the {@code graveHologramGraveUUID:<uuid>} scoreboard tag and, where persistent
+     * data exists, the {@link GraveHologramKeys#GRAVE_UUID} key holding the UUID string. Matching on the
+     * UUID rather than on {@link #isGraveHologram(Entity)} keeps a neighbouring grave's holograms from
+     * masking this grave's missing ones.
+     *
+     * @param entity    the entity to test
+     * @param graveUUID the grave the hologram must belong to
+     * @return {@code true} if the entity is a hologram line of that grave
+     */
+    private boolean isHologramOf(@NotNull Entity entity, @NotNull UUID graveUUID) {
+        String uuid = graveUUID.toString();
+
+        if (plugin.getVersionManager().hasScoreboardTags()
+                && entity.getScoreboardTags().contains("graveHologramGraveUUID:" + uuid)) {
+            return true;
+        }
+
+        if (plugin.getVersionManager().hasPersistentData()) {
+            String stored = entity.getPersistentDataContainer().get(GraveHologramKeys.GRAVE_UUID, PersistentDataType.STRING);
+            return uuid.equals(stored);
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether any hologram line of grave {@code graveUUID} still stands near {@code location}. Uses the
+     * same 2-block sweep radius the hologram managers use for removal. Must run on the owning thread of
+     * {@code location}.
+     *
+     * @param location  the grave's death location
+     * @param graveUUID the grave whose holograms to look for
+     * @return {@code true} if at least one of the grave's hologram lines is present
+     */
+    private boolean hasSurvivingHolograms(@NotNull Location location, @NotNull UUID graveUUID) {
+        World world = location.getWorld();
+        if (world == null) return false;
+
+        for (Entity entity : world.getNearbyEntities(location, 2.0, 2.0, 2.0)) {
+            if (entity.isValid() && isHologramOf(entity, graveUUID)) return true;
+        }
+        return false;
     }
 
     private boolean isHeadBlock(Block block) {
