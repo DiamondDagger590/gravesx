@@ -29,6 +29,13 @@ import java.util.UUID;
  * Handles command execution and tab completion for the Graves plugin.
  */
 public class GravesCommand implements CommandExecutor, TabCompleter {
+    /**
+     * Prefix prepended to every command response.
+     *
+     * @since 2026.4.9.3
+     */
+    private static final String PREFIX = ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET;
+
     private final Graves plugin;
     private final Set<UUID> pendingImports = new HashSet<>();
     private final Set<UUID> pendingHologramMigrations = new HashSet<>();
@@ -602,13 +609,13 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                         try {
                             PluginDownloadUtil.downloadAndReplacePlugin(120633, "GravesXAddon-LandProtection", "plugins", commandSender);
                         } catch (IOException e) {
-                            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET + "An error occurred while running command. Check console.");
+                            commandSender.sendMessage(PREFIX + "An error occurred while running command. Check console.");
                             plugin.getLogger().warning("An issue occurred while running this command.");
                             plugin.logStackTrace(e);
                         }
                         break;
                     default:
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET + "Must enter a valid addon.");
+                        commandSender.sendMessage(PREFIX + "Must enter a valid addon.");
                 }
             } else {
                 if (commandSender instanceof Player player) {
@@ -710,21 +717,21 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
 
             var graves = plugin.getGraveManager().getGraveList(player);
             if (graves.isEmpty()) {
-                player.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET + "You have no graves.");
+                player.sendMessage(PREFIX + "You have no graves.");
                 return;
             }
 
             Grave grave = graves.get(0);
             Location deathLoc = grave.getLocationDeath();
             if (deathLoc == null || deathLoc.getWorld() == null) {
-                player.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET + "Grave location is unavailable.");
+                player.sendMessage(PREFIX + "Grave location is unavailable.");
                 return;
             }
 
             if (plugin.getPermissionManager().hasGrantedPermission("graves.teleport.command.free", player)) {
                 CompatibilityTeleport.teleportSafely(player, deathLoc, plugin).thenAccept(ok -> {
                     if (!ok) {
-                        player.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET + "Teleport failed.");
+                        player.sendMessage(PREFIX + "Teleport failed.");
                     }
                 });
             } else {
@@ -745,7 +752,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
             OfflinePlayer targetPl = plugin.getServer().getOfflinePlayer(args[1]);
             var graves = plugin.getGraveManager().getGraveList(targetPl);
             if (graves.isEmpty()) {
-                player.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                player.sendMessage(PREFIX
                         + ChatColor.RED + args[1] + ChatColor.RESET + " has no graves.");
                 return;
             }
@@ -753,7 +760,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
             Grave grave = graves.get(0);
             Location base = grave.getLocationDeath();
             if (base == null || base.getWorld() == null) {
-                player.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET + "Grave location is unavailable.");
+                player.sendMessage(PREFIX + "Grave location is unavailable.");
                 return;
             }
 
@@ -762,7 +769,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                 Location target = plugin.getGraveManager().getGraveLocation(base.clone().add(1, 0, 1), grave);
                 CompatibilityTeleport.teleportSafely(player, target, plugin).thenAccept(ok -> {
                     if (!ok) {
-                        player.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET + "Teleport failed.");
+                        player.sendMessage(PREFIX + "Teleport failed.");
                     }
                 });
             } else {
@@ -781,7 +788,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
     private void handleGiveTokenCommand(CommandSender commandSender, String[] args) {
         if (!(commandSender instanceof Player) || plugin.getPermissionManager().hasGrantedPermission("graves.givetoken", ((Player) commandSender).getPlayer())) {
             if (args.length == 1) {
-                commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                commandSender.sendMessage(PREFIX
                         + ChatColor.RESET + "/graves givetoken {player} {token}");
             } else if (args.length == 2) {
                 if (commandSender instanceof Player player) {
@@ -791,7 +798,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                         plugin.getEntityManager().sendMessage("message.give-token", player);
                         player.getInventory().addItem(itemStack);
                     } else {
-                        player.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        player.sendMessage(PREFIX
                                 + "Token " + args[1] + " not found.");
                     }
                 } else {
@@ -808,11 +815,11 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                         plugin.getEntityManager().sendMessage("message.give-token", player);
                         player.getInventory().addItem(itemStack);
                     } else {
-                        player.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        player.sendMessage(PREFIX
                                 + "Token " + args[2] + " not found.");
                     }
                 } else {
-                    commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                    commandSender.sendMessage(PREFIX
                             + "Player " + args[1] + " not found.");
                 }
             } else if (args.length == 4) {
@@ -836,11 +843,11 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
 
                         plugin.getEntityManager().sendMessage("message.give-token", player);
                     } else {
-                        player.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        player.sendMessage(PREFIX
                                 + "Token " + args[2] + " not found.");
                     }
                 } else {
-                    commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                    commandSender.sendMessage(PREFIX
                             + "Player " + args[1] + " not found.");
                 }
             }
@@ -857,14 +864,14 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                 plugin.getLogger().warning("Skript v." + skriptPlugin.getDescription().getVersion() + " detected. Skript Integration option will only take effect on restart.");
             }
 
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+            commandSender.sendMessage(PREFIX
                     + "Reloading " + plugin.getName() + "...");
 
             final long start = System.nanoTime();
             plugin.reload();
             final long tookMs = (System.nanoTime() - start) / 1_000_000L;
 
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+            commandSender.sendMessage(PREFIX
                     + plugin.getName() + " reloaded. " + ChatColor.DARK_GRAY + "(" + tookMs + "ms)");
         } else {
             plugin.getEntityManager().sendMessage("message.permission-denied", (Player) commandSender);
@@ -873,7 +880,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
 
     private void handleDumpCommand(CommandSender commandSender) {
         if (!(commandSender instanceof Player) || plugin.getPermissionManager().hasGrantedPermission("graves.dump", ((Player) commandSender).getPlayer())) {
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+            commandSender.sendMessage(PREFIX
                     + "Running dump functions...");
             plugin.dumpServerInfo(commandSender);
         } else {
@@ -891,7 +898,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                         List<String> stringList = plugin.getConfig().getStringList("settings.debug.user");
 
                         stringList.add(player.getUniqueId().toString());
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + ChatColor.RESET + "Debug level changed to: (" + args[1]
                                 + "), User (" + player.getName() + ") added, This won't persist "
                                 + "across restarts or reloads.");
@@ -900,11 +907,11 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                                 + "), This won't persist across restarts or reloads.");
                     }
                 } catch (NumberFormatException ignored) {
-                    commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                    commandSender.sendMessage(PREFIX
                             + ChatColor.RESET + args[1] + " is not a valid int.");
                 }
             } else {
-                commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                commandSender.sendMessage(PREFIX
                         + ChatColor.RESET + "/graves debug {level}");
             }
         } else {
@@ -930,7 +937,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
     private void handlePurgeCommand(CommandSender commandSender, String[] args) {
         if (!(commandSender instanceof Player) || plugin.getPermissionManager().hasGrantedPermission("graves.purge", ((Player) commandSender).getPlayer())) {
             if (args.length < 2) {
-                commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                commandSender.sendMessage(PREFIX
                         + "Please specify a subcommand.");
                 return;
             }
@@ -952,7 +959,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                 }
                 case "player", "offline-player" -> {
                     if (args.length < 3) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "Please specify an offline player's name.");
                         return;
                     }
@@ -961,7 +968,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                     OfflinePlayer targetOfflinePlayer = Bukkit.getOfflinePlayer(targetOfflinePlayerName);
 
                     if (!targetOfflinePlayer.hasPlayedBefore()) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "Player not found or has never played on this server.");
                         return;
                     }
@@ -977,16 +984,16 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                     }
 
                     if (offlineGraveFound) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "Graves of offline player " + targetOfflinePlayerName + " purged.");
                     } else {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "No graves found for offline player " + targetOfflinePlayerName + ".");
                     }
                 }
                 case "grave-specific", "grave-uuid" -> {
                     if (args.length < 3) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "Please specify a grave UUID.");
                         return;
                     }
@@ -995,7 +1002,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                     try {
                         graveUUIDTarget = UUID.fromString(args[2]);
                     } catch (IllegalArgumentException e) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "Invalid UUID format.");
                         return;
                     }
@@ -1009,7 +1016,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                     }
 
                     if (target == null) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "No graves found for UUID " + args[2] + ".");
                         return;
                     }
@@ -1020,7 +1027,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                     plugin.getSchedulerManager().runTask(() -> {
                         plugin.getGraveManager().removeGrave(grave);
 
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "Grave UUID " + graveUUIDTarget + " purged.");
                     });
                 }
@@ -1039,15 +1046,14 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                         purged++;
                     }
 
-                    commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " +
-                            ChatColor.RESET + purged + " abandoned grave(s) purged.");
+                    commandSender.sendMessage(PREFIX + purged + " abandoned grave(s) purged.");
                 }
                 default -> {
                     List<Grave> allGraves = new ArrayList<>(plugin.getCacheManager().getGraveMap().values());
                     for (Grave grave : allGraves) {
                         plugin.getGraveManager().removeGrave(grave);
                     }
-                    commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                    commandSender.sendMessage(PREFIX
                             + allGraves.size() + " graves purged.");
                 }
             }
@@ -1058,7 +1064,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
 
     private void handleImportCommand(CommandSender commandSender, String[] args) {
         if (args == null || args.length == 0) {
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+            commandSender.sendMessage(PREFIX
                     + "Usage: /graves import {plugin}");
             return;
         }
@@ -1076,19 +1082,34 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
         }
 
         if (sub.equals("angelchest")) {
-            if (isConsole) {
-                consolePendingImport = true;
-            } else {
-                pendingImports.add(player.getUniqueId());
+            if (plugin.getImportManager().isImportInFlight()) {
+                commandSender.sendMessage(PREFIX + "An AngelChest import is already running.");
+                return;
             }
 
-            plugin.debugMessage(plugin.getImportManager().countAngelChestStatusText(), 1);
-            plugin.debugMessage(plugin.getImportManager().listAngelChestMissingWorldText(), 2);
+            commandSender.sendMessage(PREFIX + "Scanning AngelChest data...");
 
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET +
-                    "This will import " + ChatColor.RED + plugin.getImportManager().countAngelChestImportableOnly() + ChatColor.RESET + " graves from AngelChest. This may create many graves and cannot be undone.\n" +
-                    "You bear in mind that hex color codes may not convert over.\n" +
-                    ChatColor.YELLOW + "Type " + ChatColor.RED + "/graves import confirm" + ChatColor.YELLOW + " to proceed.");
+            plugin.getImportManager().scanAngelChestAsync().whenComplete((scan, error) -> {
+                if (error != null) {
+                    commandSender.sendMessage(PREFIX + "AngelChest scan failed: " + error.getMessage());
+                    plugin.logStackTrace(error);
+                    return;
+                }
+
+                if (isConsole) {
+                    consolePendingImport = true;
+                } else {
+                    pendingImports.add(player.getUniqueId());
+                }
+
+                plugin.debugMessage(plugin.getImportManager().statusText(scan), 1);
+                plugin.debugMessage(plugin.getImportManager().missingWorldText(scan), 2);
+
+                commandSender.sendMessage(PREFIX + "This will import " + ChatColor.RED + scan.importable() + ChatColor.RESET
+                        + " graves from AngelChest. This may create many graves and cannot be undone.\n"
+                        + "You bear in mind that hex color codes may not convert over.\n"
+                        + ChatColor.YELLOW + "Type " + ChatColor.RED + "/graves import confirm" + ChatColor.YELLOW + " to proceed.");
+            });
             return;
         }
 
@@ -1096,8 +1117,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
             boolean allowed = isConsole ? consolePendingImport : pendingImports.remove(player.getUniqueId());
 
             if (!allowed) {
-                commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET +
-                        "No pending import request. Run /graves import {plugin} first.");
+                commandSender.sendMessage(PREFIX + "No pending import request. Run /graves import {plugin} first.");
                 return;
             }
 
@@ -1105,27 +1125,27 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                 consolePendingImport = false;
             }
 
-            List<Grave> graveList = plugin.getImportManager().importExternalPluginAngelChest();
+            commandSender.sendMessage(PREFIX + "Importing AngelChest graves...");
 
-            int placed = 0;
-            for (Grave grave : graveList) {
-                plugin.getDataManager().addGrave(grave);
-                if (grave.getLocationDeath() != null) {
-                    plugin.getGraveManager().placeGrave(grave.getLocationDeath(), grave);
-                    placed++;
+            plugin.getImportManager().importAngelChestAsync().whenComplete((report, error) -> {
+                if (error != null) {
+                    commandSender.sendMessage(PREFIX + "AngelChest import failed: " + error.getMessage());
+                    if (!(error instanceof IllegalStateException)) {
+                        plugin.logStackTrace(error);
+                    }
+                    return;
                 }
-            }
 
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET +
-                    "Imported " + graveList.size() + " graves from AngelChest"
-                    + (placed != graveList.size()
-                    ? (" (" + placed + " placed, " + (graveList.size() - placed) + " skipped due to missing location)")
-                    : "")
-                    + ".");
+                commandSender.sendMessage(PREFIX + "Imported " + report.total() + " graves from AngelChest"
+                        + (report.placed() != report.total()
+                        ? " (" + report.placed() + " placed, " + (report.total() - report.placed()) + " skipped due to missing location)"
+                        : "")
+                        + ".");
+            });
             return;
         }
 
-        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+        commandSender.sendMessage(PREFIX
                 + "Usage: /graves import {plugin}");
     }
 
@@ -1149,7 +1169,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
         }
 
         if (!plugin.getVersionManager().isHasTextDisplays()) {
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+            commandSender.sendMessage(PREFIX
                     + "TextDisplay holograms are not supported on this server version.");
             return;
         }
@@ -1158,7 +1178,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
             boolean allowed = isConsole ? consolePendingHologramMigration : pendingHologramMigrations.remove(player.getUniqueId());
 
             if (!allowed) {
-                commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                commandSender.sendMessage(PREFIX
                         + "No pending hologram migration request. Run /graves migration holograms first.");
                 return;
             }
@@ -1169,21 +1189,21 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
 
             int migrated = migrateArmorStandHologramsToTextDisplays();
 
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+            commandSender.sendMessage(PREFIX
                     + "Hologram migration complete. Graves migrated to the modern TextDisplay system: "
                     + ChatColor.RED + migrated + ChatColor.RESET + ".");
             return;
         }
 
         if (args.length > 2) {
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+            commandSender.sendMessage(PREFIX
                     + "Usage: /graves migration holograms confirm");
             return;
         }
 
         Set<UUID> graveUUIDs = getArmorStandHologramGraveUUIDs();
         if (graveUUIDs.isEmpty()) {
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+            commandSender.sendMessage(PREFIX
                     + "No ArmorStand grave holograms were found to migrate.");
             return;
         }
@@ -1194,7 +1214,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
             pendingHologramMigrations.add(player.getUniqueId());
         }
 
-        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+        commandSender.sendMessage(PREFIX
                 + "This will migrate all ArmorStand grave holograms for " + ChatColor.RED + graveUUIDs.size() + ChatColor.RESET
                 + " graves to TextDisplay holograms. This may take time.\n"
                 + ChatColor.YELLOW + "Type " + ChatColor.RED + "/graves migration holograms confirm"
@@ -1226,7 +1246,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendMigrationList(CommandSender commandSender) {
-        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+        commandSender.sendMessage(PREFIX
                 + "Available migrations:");
         commandSender.sendMessage(ChatColor.RED + "/graves migration holograms " + ChatColor.DARK_GRAY + "-"
                 + ChatColor.RESET + " Migrate ArmorStand grave holograms to TextDisplay holograms");
@@ -1277,9 +1297,9 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
         }
 
         if (args.length < 2) {
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+            commandSender.sendMessage(PREFIX
                     + "Usage: /graves count world [world]");
-            commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+            commandSender.sendMessage(PREFIX
                     + "Usage: /graves count player <player> [world]");
             return;
         }
@@ -1293,13 +1313,13 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                 if (args.length >= 3) {
                     targetWorld = Bukkit.getWorld(args[2]);
                     if (targetWorld == null) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "World " + ChatColor.RED + args[2] + ChatColor.RESET + " not found.");
                         return;
                     }
                 } else {
                     if (!(commandSender instanceof Player player)) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "Console must specify a world.");
                         return;
                     }
@@ -1315,7 +1335,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                     }
                 }
 
-                commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                commandSender.sendMessage(PREFIX
                         + "Found " + ChatColor.RED + count + ChatColor.RESET + " grave(s) in world "
                         + ChatColor.RED + targetWorld.getName() + ChatColor.RESET + ".");
             }
@@ -1326,7 +1346,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
 
                 if (args.length == 2) {
                     if (!(commandSender instanceof Player player)) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "Console must specify a player and world.");
                         return;
                     }
@@ -1335,14 +1355,14 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                     targetWorld = player.getWorld();
                 } else if (args.length == 3) {
                     if (!(commandSender instanceof Player player)) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "Console must specify a world.");
                         return;
                     }
 
                     targetPlayer = Bukkit.getOfflinePlayer(args[2]);
                     if (targetPlayer.getName() == null && !targetPlayer.hasPlayedBefore()) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "Player not found or has never played on this server.");
                         return;
                     }
@@ -1351,14 +1371,14 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                 } else {
                     targetPlayer = Bukkit.getOfflinePlayer(args[2]);
                     if (targetPlayer.getName() == null && !targetPlayer.hasPlayedBefore()) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "Player not found or has never played on this server.");
                         return;
                     }
 
                     targetWorld = Bukkit.getWorld(args[3]);
                     if (targetWorld == null) {
-                        commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                        commandSender.sendMessage(PREFIX
                                 + "World " + ChatColor.RED + args[3] + ChatColor.RESET + " not found.");
                         return;
                     }
@@ -1380,16 +1400,16 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
 
                 String playerName = targetPlayer.getName() != null ? targetPlayer.getName() : targetUUID.toString();
 
-                commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                commandSender.sendMessage(PREFIX
                         + "Found " + ChatColor.RED + count + ChatColor.RESET + " grave(s) for "
                         + ChatColor.RED + playerName + ChatColor.RESET + " in world "
                         + ChatColor.RED + targetWorld.getName() + ChatColor.RESET + ".");
             }
 
             default -> {
-                commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                commandSender.sendMessage(PREFIX
                         + "Usage: /graves count world [world]");
-                commandSender.sendMessage(ChatColor.RED + "☠" + ChatColor.DARK_GRAY + " » " + ChatColor.RESET
+                commandSender.sendMessage(PREFIX
                         + "Usage: /graves count player [player] [world]");
             }
         }
