@@ -893,6 +893,7 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
             if (args.length > 1) {
                 try {
                     plugin.getConfig().set("settings.debug.level", Integer.parseInt(args[1]));
+                    plugin.getDebugManager().refreshFromConfig();
 
                     if (commandSender instanceof Player player) {
                         List<String> stringList = plugin.getConfig().getStringList("settings.debug.user");
@@ -1102,8 +1103,8 @@ public class GravesCommand implements CommandExecutor, TabCompleter {
                     pendingImports.add(player.getUniqueId());
                 }
 
-                plugin.debugMessage(plugin.getImportManager().statusText(scan), 1);
-                plugin.debugMessage(plugin.getImportManager().missingWorldText(scan), 2);
+                plugin.debugMessage(() -> plugin.getImportManager().statusText(scan), 1);
+                plugin.debugMessage(() -> plugin.getImportManager().missingWorldText(scan), 2);
 
                 commandSender.sendMessage(PREFIX + "This will import " + ChatColor.RED + scan.importable() + ChatColor.RESET
                         + " graves from AngelChest. This may create many graves and cannot be undone.\n"

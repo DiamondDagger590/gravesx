@@ -127,16 +127,16 @@ public class TextDisplayManager extends EntityDataManager {
             return;
         }
 
-        plugin.debugMessage("[Holograms] removeTextDisplayHologram(grave=" + grave.getUUID()
+        plugin.debugMessage(() -> "[Holograms] removeTextDisplayHologram(grave=" + grave.getUUID()
                 + ") resolving cached TextDisplay holograms", 1);
 
         List<HologramData> hologramDataList = getCachedHologramData(grave, HologramData.Backend.TEXT_DISPLAY);
 
-        plugin.debugMessage("[Holograms] removeTextDisplayHologram(grave=" + grave.getUUID() + ") resolved "
+        plugin.debugMessage(() -> "[Holograms] removeTextDisplayHologram(grave=" + grave.getUUID() + ") resolved "
                 + hologramDataList.size() + " cached TextDisplay hologram(s)", 1);
 
         if (hologramDataList.isEmpty()) {
-            plugin.debugMessage("[Holograms] No cached TextDisplay holograms found for grave=" + grave.getUUID(), 2);
+            plugin.debugMessage(() -> "[Holograms] No cached TextDisplay holograms found for grave=" + grave.getUUID(), 2);
             return;
         }
 
@@ -152,7 +152,7 @@ public class TextDisplayManager extends EntityDataManager {
                 + "Use removeHologram(Grave) instead.";
 
         plugin.getLogger().severe(message + " entity=" + (entityData != null ? entityData.getUUIDEntity() : "null"));
-        plugin.debugMessage("[Holograms] " + message, 1);
+        plugin.debugMessage(() -> "[Holograms] " + message, 1);
 
         throw new UnsupportedOperationException(message);
     }
@@ -166,7 +166,7 @@ public class TextDisplayManager extends EntityDataManager {
                 + "Use removeHologram(Grave) instead.";
 
         plugin.getLogger().severe(message + " size=" + (entityDataMap != null ? entityDataMap.size() : 0));
-        plugin.debugMessage("[Holograms] " + message, 1);
+        plugin.debugMessage(() -> "[Holograms] " + message, 1);
 
         throw new UnsupportedOperationException(message);
     }
@@ -203,7 +203,7 @@ public class TextDisplayManager extends EntityDataManager {
             return;
         }
 
-        plugin.debugMessage("[Holograms] removeResolvedTextDisplays count="
+        plugin.debugMessage(() -> "[Holograms] removeResolvedTextDisplays count="
                 + hologramDataList.size(), 1);
 
         Location anchor = hologramDataList.get(0).getLocation();
@@ -244,14 +244,14 @@ public class TextDisplayManager extends EntityDataManager {
                             removedCount++;
 
                             plugin.debugMessage(
-                                    "[Holograms] Removed direct TextDisplay entity="
+                                    () -> "[Holograms] Removed direct TextDisplay entity="
                                             + td.getUniqueId(),
                                     2
                             );
                         }
                     } catch (Throwable t) {
                         plugin.debugMessage(
-                                "[Holograms] Failed direct TextDisplay removal entity="
+                                () -> "[Holograms] Failed direct TextDisplay removal entity="
                                         + data.getUUIDEntity()
                                         + ": "
                                         + t.getMessage(),
@@ -324,7 +324,7 @@ public class TextDisplayManager extends EntityDataManager {
                                 removedCount++;
 
                                 plugin.debugMessage(
-                                        "[Holograms] Removed matched TextDisplay entity="
+                                        () -> "[Holograms] Removed matched TextDisplay entity="
                                                 + td.getUniqueId()
                                                 + " grave="
                                                 + finalGraveUUID,
@@ -333,11 +333,12 @@ public class TextDisplayManager extends EntityDataManager {
                             }
                         }
 
+                        int removedTotal = removedCount;
                         plugin.debugMessage(
-                                "[Holograms] TextDisplay removal sweep finished entity="
+                                () -> "[Holograms] TextDisplay removal sweep finished entity="
                                         + data.getUUIDEntity()
                                         + ", removed="
-                                        + removedCount,
+                                        + removedTotal,
                                 2
                         );
 
@@ -397,7 +398,7 @@ public class TextDisplayManager extends EntityDataManager {
                 }
             }
         } catch (Throwable t) {
-            plugin.debugMessage("Failed to get Target Location for grave " + grave.getUUID()
+            plugin.debugMessage(() -> "Failed to get Target Location for grave " + grave.getUUID()
                     + ". Holograms will not update. \n" + Arrays.toString(t.getStackTrace()), 2);
         }
 
@@ -430,7 +431,7 @@ public class TextDisplayManager extends EntityDataManager {
         for (World world : plugin.getServer().getWorlds()) {
 
             plugin.debugMessage(
-                    "[Cleanup] Scanning world "
+                    () -> "[Cleanup] Scanning world "
                             + world.getName()
                             + " for lingering TextDisplays",
                     2
@@ -510,7 +511,7 @@ public class TextDisplayManager extends EntityDataManager {
                         td.remove();
 
                         plugin.debugMessage(
-                                "[Cleanup] Removed TextDisplay missing grave UUID entity="
+                                () -> "[Cleanup] Removed TextDisplay missing grave UUID entity="
                                         + td.getUniqueId(),
                                 2
                         );
@@ -529,9 +530,10 @@ public class TextDisplayManager extends EntityDataManager {
 
                         td.remove();
 
+                        UUID staleGraveUUID = graveUUID;
                         plugin.debugMessage(
-                                "[Cleanup] Removed TextDisplay for missing grave "
-                                        + graveUUID,
+                                () -> "[Cleanup] Removed TextDisplay for missing grave "
+                                        + staleGraveUUID,
                                 2
                         );
 
@@ -544,11 +546,12 @@ public class TextDisplayManager extends EntityDataManager {
 
                         td.remove();
 
+                        UUID staleGraveUUID = graveUUID;
                         plugin.debugMessage(
-                                "[Cleanup] Removed orphaned TextDisplay entity="
+                                () -> "[Cleanup] Removed orphaned TextDisplay entity="
                                         + td.getUniqueId()
                                         + " grave="
-                                        + graveUUID,
+                                        + staleGraveUUID,
                                 2
                         );
                         return;
@@ -558,11 +561,12 @@ public class TextDisplayManager extends EntityDataManager {
 
                         td.remove();
 
+                        UUID staleGraveUUID = graveUUID;
                         plugin.debugMessage(
-                                "[Cleanup] Removed stale TextDisplay entity="
+                                () -> "[Cleanup] Removed stale TextDisplay entity="
                                         + td.getUniqueId()
                                         + " grave="
-                                        + graveUUID,
+                                        + staleGraveUUID,
                                 2
                         );
                     }

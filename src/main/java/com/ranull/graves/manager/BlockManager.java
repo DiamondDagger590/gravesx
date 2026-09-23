@@ -145,14 +145,15 @@ public class BlockManager {
                 plugin.getIntegrationManager().getNexo().createBlock(location, grave);
             }
 
+            Location placed = location;
             if (material != null) {
-                plugin.debugMessage("Placing grave block for " + grave.getUUID() + " at "
-                        + location.getWorld().getName() + ", " + (location.getBlockX() + 0.5) + "x, "
-                        + (location.getBlockY() + 0.5) + "y, " + (location.getBlockZ() + 0.5) + "z", 1);
+                plugin.debugMessage(() -> "Placing grave block for " + grave.getUUID() + " at "
+                        + placed.getWorld().getName() + ", " + (placed.getBlockX() + 0.5) + "x, "
+                        + (placed.getBlockY() + 0.5) + "y, " + (placed.getBlockZ() + 0.5) + "z", 1);
             } else {
-                plugin.debugMessage("Placing access location for " + grave.getUUID() + " at "
-                        + location.getWorld().getName() + ", " + (location.getBlockX() + 0.5) + "x, "
-                        + (location.getBlockY() + 0.5) + "y, " + (location.getBlockZ() + 0.5) + "z", 1);
+                plugin.debugMessage(() -> "Placing access location for " + grave.getUUID() + " at "
+                        + placed.getWorld().getName() + ", " + (placed.getBlockX() + 0.5) + "x, "
+                        + (placed.getBlockY() + 0.5) + "y, " + (placed.getBlockZ() + 0.5) + "z", 1);
             }
         }
     }
@@ -334,7 +335,7 @@ public class BlockManager {
             }
 
             plugin.getDataManager().removeBlockData(location);
-            plugin.debugMessage((hasReplacementData ? "Replacing" : "Removing") + " grave block for " + blockData.getGraveUUID() + " at "
+            plugin.debugMessage(() -> (hasReplacementData ? "Replacing" : "Removing") + " grave block for " + blockData.getGraveUUID() + " at "
                     + location.getWorld().getName() + ", " + (location.getBlockX() + 0.5) + "x, "
                     + (location.getBlockY() + 0.5) + "y, " + (location.getBlockZ() + 0.5) + "z", 1);
         }

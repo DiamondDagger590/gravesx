@@ -33,14 +33,14 @@ public class HologramManager extends EntityDataManager {
             return;
         }
 
-        plugin.debugMessage("[Holograms] Creating hologram for grave=" + grave.getUUID()
+        plugin.debugMessage(() -> "[Holograms] Creating hologram for grave=" + grave.getUUID()
                 + " at " + (location != null ? toLocKey(location) : "null"), 1);
 
         if (plugin.getVersionManager().isHasTextDisplays()) {
-            plugin.debugMessage("[Holograms] Using TextDisplay backend for grave=" + grave.getUUID(), 2);
+            plugin.debugMessage(() -> "[Holograms] Using TextDisplay backend for grave=" + grave.getUUID(), 2);
             plugin.getTextDisplayManager().createHologram(location, grave);
         } else {
-            plugin.debugMessage("[Holograms] Using ArmorStand backend for grave=" + grave.getUUID(), 2);
+            plugin.debugMessage(() -> "[Holograms] Using ArmorStand backend for grave=" + grave.getUUID(), 2);
             plugin.getArmorStandManager().createHologram(location, grave);
         }
     }
@@ -64,22 +64,22 @@ public class HologramManager extends EntityDataManager {
             return;
         }
 
-        plugin.debugMessage("[Holograms] removeHologram(grave=" + grave.getUUID() + ") starting", 1);
+        plugin.debugMessage(() -> "[Holograms] removeHologram(grave=" + grave.getUUID() + ") starting", 1);
 
         if (plugin.getVersionManager().isHasTextDisplays()) {
-            plugin.debugMessage("[Holograms] Routing grave=" + grave.getUUID()
+            plugin.debugMessage(() -> "[Holograms] Routing grave=" + grave.getUUID()
                     + " removal to TextDisplayManager and ArmorStandManager", 2);
 
             plugin.getTextDisplayManager().removeHologram(grave);
             plugin.getArmorStandManager().removeHologram(grave);
         } else {
-            plugin.debugMessage("[Holograms] Routing grave=" + grave.getUUID()
+            plugin.debugMessage(() -> "[Holograms] Routing grave=" + grave.getUUID()
                     + " removal to ArmorStandManager only", 2);
 
             plugin.getArmorStandManager().removeHologram(grave);
         }
 
-        plugin.debugMessage("[Holograms] removeHologram(grave=" + grave.getUUID() + ") finished dispatch", 1);
+        plugin.debugMessage(() -> "[Holograms] removeHologram(grave=" + grave.getUUID() + ") finished dispatch", 1);
     }
 
     /**
@@ -93,7 +93,7 @@ public class HologramManager extends EntityDataManager {
                 + "Use removeHologram(Grave) instead.";
 
         plugin.getLogger().severe(message + " size=" + (entityDataList != null ? entityDataList.size() : 0));
-        plugin.debugMessage("[Holograms] " + message, 1);
+        plugin.debugMessage(() -> "[Holograms] " + message, 1);
 
         throw new UnsupportedOperationException(message);
     }
@@ -109,7 +109,7 @@ public class HologramManager extends EntityDataManager {
                 + "Use removeHologram(Grave) instead.";
 
         plugin.getLogger().severe(message + " entity=" + (entityData != null ? entityData.getUUIDEntity() : "null"));
-        plugin.debugMessage("[Holograms] " + message, 1);
+        plugin.debugMessage(() -> "[Holograms] " + message, 1);
 
         throw new UnsupportedOperationException(message);
     }
@@ -125,7 +125,7 @@ public class HologramManager extends EntityDataManager {
                 + "Use removeHologram(Grave) instead.";
 
         plugin.getLogger().severe(message + " size=" + (entityDataMap != null ? entityDataMap.size() : 0));
-        plugin.debugMessage("[Holograms] " + message, 1);
+        plugin.debugMessage(() -> "[Holograms] " + message, 1);
 
         throw new UnsupportedOperationException(message);
     }
@@ -162,7 +162,7 @@ public class HologramManager extends EntityDataManager {
 
         Grave grave = plugin.getCacheManager().getGraveMap().get(graveUUID);
 
-        plugin.debugMessage("[Holograms] hasGrave lookup for " + graveUUID + " -> "
+        plugin.debugMessage(() -> "[Holograms] hasGrave lookup for " + graveUUID + " -> "
                 + (grave != null ? "hit" : "miss"), 3);
 
         return grave;

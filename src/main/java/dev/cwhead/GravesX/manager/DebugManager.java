@@ -4,14 +4,18 @@ import com.ranull.graves.Graves;
 import com.ranull.graves.util.UUIDUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * Debug output manager (info/warn) for console + configured admins.
@@ -43,6 +47,24 @@ public final class DebugManager {
 
     private final Graves plugin;
     private final AtomicBoolean unloaded = new AtomicBoolean(false);
+
+    /**
+     * Snapshot of the debug settings; replaced wholesale on refresh.
+     *
+     * @param level           the configured debug level, clamped to 0..2
+     * @param showCaller      whether to tag messages with the triggering plugin
+     * @param showCallerClass whether the tag includes class, method and line
+     * @since 2026.4.9.3
+     */
+    private record DebugSettings(int level, boolean showCaller, boolean showCallerClass) {}
+
+    /**
+     * Cached debug settings; {@code null} until first read or after {@link #refreshFromConfig()}. Read lazily
+     * because this manager is constructed before the config manager.
+     *
+     * @since 2026.4.9.3
+     */
+    private volatile DebugSettings settings;
 
     /**
      * Creates a new manager and unloads any previous active instance.
@@ -89,14 +111,35 @@ public final class DebugManager {
             return false;
         }
 
-        int level = plugin.getConfig().getInt("settings.debug.level", 0);
-
-        // clamp to supported range 0..2
-        if (level < 0) level = 0;
-        if (level > 2) level = 2;
-
         // level=0 => print nothing, level=1 => only 1, level=2 => 1 and 2
-        return level != 0 && severity <= level;
+        return severity <= settings().level();
+    }
+
+    /**
+     * Drops the cached debug settings; the next call re-reads them from config.
+     *
+     * @since 2026.4.9.3
+     */
+    public void refreshFromConfig() {
+        settings = null;
+    }
+
+    /**
+     * Returns the cached debug settings, reading them from config on first use after a refresh.
+     *
+     * @return the current settings
+     */
+    private @NotNull DebugSettings settings() {
+        DebugSettings current = settings;
+        if (current == null) {
+            FileConfiguration config = plugin.getConfig();
+            current = new DebugSettings(
+                    Math.max(0, Math.min(2, config.getInt("settings.debug.level", 0))),
+                    config.getBoolean("settings.debug.show-caller", true),
+                    config.getBoolean("settings.debug.show-caller-class", false));
+            settings = current;
+        }
+        return current;
     }
 
     /**
@@ -139,8 +182,9 @@ public final class DebugManager {
             return;
         }
 
-        boolean showCaller = plugin.getConfig().getBoolean("settings.debug.show-caller", true);
-        boolean showCallerClass = plugin.getConfig().getBoolean("settings.debug.show-caller-class", false);
+        DebugSettings current = settings();
+        boolean showCaller = current.showCaller();
+        boolean showCallerClass = current.showCallerClass();
 
         CallerInfo caller = (showCaller || showCallerClass) ? resolveTriggeringPluginCaller(showCallerClass) : null;
         if (caller != null && !showCallerClass) {
@@ -176,6 +220,34 @@ public final class DebugManager {
                 }
             });
         }
+    }
+
+    /**
+     * Logs a lazily built message; the supplier is invoked only if {@code severity} is enabled.
+     *
+     * @param message  supplier of the message
+     * @param severity 0=disabled, 1=info, 2=warnings
+     * @since 2026.4.9.3
+     */
+    public void debug(@NotNull Supplier<String> message, int severity) {
+        debug(message, severity, null);
+    }
+
+    /**
+     * Logs a lazily built message with an optional throwable; the supplier is invoked only if
+     * {@code severity} is enabled.
+     *
+     * @param message   supplier of the message
+     * @param severity  0=disabled, 1=info, 2=warnings
+     * @param throwable optional throwable
+     * @since 2026.4.9.3
+     */
+    public void debug(@NotNull Supplier<String> message, int severity, @Nullable Throwable throwable) {
+        if (!isEnabled(severity)) {
+            return;
+        }
+
+        debug(message.get(), severity, throwable);
     }
 
     /**

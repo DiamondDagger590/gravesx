@@ -405,28 +405,28 @@ public final class SafeLocationManager {
         String prefix = "[SafeLocationManager] getSafeTeleportLocation: ";
 
         if (plugin.getConfigManager().getConfigSection("teleport.unsafe", grave).getBoolean("teleport.unsafe")) {
-            plugin.debugMessage(prefix + "teleport.unsafe=true, using requested location as-is.", 1);
+            plugin.debugMessage(() -> prefix + "teleport.unsafe=true, using requested location as-is.", 1);
             return rounded;
         }
 
         if (isLocationSafePlayer(rounded)) {
-            plugin.debugMessage(prefix + "requested location already safe for player, using as-is.", 1);
+            plugin.debugMessage(() -> prefix + "requested location already safe for player, using as-is.", 1);
             return rounded;
         }
 
         if (plugin.getConfigManager().getConfigSection("teleport.top", grave).getBoolean("teleport.top")) {
             Location top = resolveTeleportTop(rounded);
             if (top != null) {
-                plugin.debugMessage(prefix + "resolved top teleport location to " + fmtLoc(top) + ".", 1);
+                plugin.debugMessage(() -> prefix + "resolved top teleport location to " + fmtLoc(top) + ".", 1);
                 if (entity instanceof Player player) {
                     plugin.getEntityManager().sendMessage("message.teleport-top", player, top, grave);
                 }
                 return top;
             }
-            plugin.debugMessage(prefix + "no safe top teleport location found.", 1);
+            plugin.debugMessage(() -> prefix + "no safe top teleport location found.", 1);
         }
 
-        plugin.debugMessage(prefix + "no safe teleport location could be resolved, returning null.", 1);
+        plugin.debugMessage(() -> prefix + "no safe teleport location could be resolved, returning null.", 1);
         return null;
     }
 
@@ -479,19 +479,19 @@ public final class SafeLocationManager {
         String prefix = "[SafeLocationManager] resolveSafeGravePlacement: ";
 
         if (location == null) {
-            plugin.debugMessage(prefix + "input location is null; returning null.", 1);
+            plugin.debugMessage(() -> prefix + "input location is null; returning null.", 1);
             return null;
         }
 
-        Location origin = LocationUtil.roundLocation(location);
-        if (origin == null) origin = location.clone();
+        Location rounded = LocationUtil.roundLocation(location);
+        Location origin = rounded != null ? rounded : location.clone();
 
         if (origin.getWorld() == null) {
-            plugin.debugMessage(prefix + "origin world is null; returning original as-is.", 1);
+            plugin.debugMessage(() -> prefix + "origin world is null; returning original as-is.", 1);
             return GravePlacementResult.of(origin, GravePlacementReason.FALLBACK_ORIGINAL);
         }
 
-        plugin.debugMessage(prefix + "origin=" + fmtLoc(origin) + " block=" + origin.getBlock().getType(), 1);
+        plugin.debugMessage(() -> prefix + "origin=" + fmtLoc(origin) + " block=" + origin.getBlock().getType(), 1);
 
         boolean useGround = plugin.getConfigManager().getConfigSection("placement.ground", grave).getBoolean("placement.ground");
         boolean useRoof = plugin.getConfigManager().getConfigSection("placement.roof", grave).getBoolean("placement.roof");
@@ -504,21 +504,21 @@ public final class SafeLocationManager {
             Location scanBase = new Location(world, origin.getBlockX() + 0.5, worldMaxY, origin.getBlockZ() + 0.5, origin.getYaw(), origin.getPitch());
             Location down = searchDownForSafeGrave(scanBase, grave, worldMaxY);
             if (down != null) {
-                plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.ABOVE_BUILD_LIMIT + " loc=" + fmtLoc(down) + " distSq=" + distSq(scanBase, down) + ".", 1);
+                plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.ABOVE_BUILD_LIMIT + " loc=" + fmtLoc(down) + " distSq=" + distSq(scanBase, down) + ".", 1);
                 return GravePlacementResult.of(down, GravePlacementReason.ABOVE_BUILD_LIMIT);
             }
-            plugin.debugMessage(prefix + "origin above build limit; no safe placement found below build limit; continuing.", 1);
+            plugin.debugMessage(() -> prefix + "origin above build limit; no safe placement found below build limit; continuing.", 1);
         }
 
         if (isNether(world) && isAboveNetherRoofInternal(origin, grave) && !allowNetherRoof && !useRoof) {
             int roofY = getNetherRoofYInternal(world, grave);
-            plugin.debugMessage(prefix + "nether-roof handling: roofLimitY=" + roofY + " roof=false nether-roof=false.", 1);
+            plugin.debugMessage(() -> prefix + "nether-roof handling: roofLimitY=" + roofY + " roof=false nether-roof=false.", 1);
 
             Location scanStart = new Location(world, origin.getBlockX() + 0.5, roofY, origin.getBlockZ() + 0.5, origin.getYaw(), origin.getPitch());
 
             Location below = searchDownForSafeGrave(scanStart, grave, roofY);
             if (below != null) {
-                plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.GROUND + " loc=" + fmtLoc(below) + " distSq=" + distSq(origin, below) + ".", 1);
+                plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.GROUND + " loc=" + fmtLoc(below) + " distSq=" + distSq(origin, below) + ".", 1);
                 return GravePlacementResult.of(below, GravePlacementReason.GROUND);
             }
 
@@ -526,36 +526,36 @@ public final class SafeLocationManager {
             Location roofTop = new Location(world, origin.getBlockX() + 0.5, roofTopY, origin.getBlockZ() + 0.5, origin.getYaw(), origin.getPitch());
 
             if (!hasGrave(roofTop) && isLocationSafeGrave(roofTop)) {
-                plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.NETHER_ROOF + " loc=" + fmtLoc(roofTop) + " distSq=" + distSq(origin, roofTop) + ".", 1);
+                plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.NETHER_ROOF + " loc=" + fmtLoc(roofTop) + " distSq=" + distSq(origin, roofTop) + ".", 1);
                 return GravePlacementResult.of(roofTop, GravePlacementReason.NETHER_ROOF);
             }
 
             Location roofUp = searchUpForSafeGrave(roofTop, roofTop, grave, roofTop.getBlockY() + 1);
             if (roofUp != null) {
-                plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.NETHER_ROOF + " loc=" + fmtLoc(roofUp) + " distSq=" + distSq(origin, roofUp) + ".", 1);
+                plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.NETHER_ROOF + " loc=" + fmtLoc(roofUp) + " distSq=" + distSq(origin, roofUp) + ".", 1);
                 return GravePlacementResult.of(roofUp, GravePlacementReason.NETHER_ROOF);
             }
 
-            plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.NETHER_ROOF + " loc=" + fmtLoc(origin) + " distSq=0.0.", 1);
+            plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.NETHER_ROOF + " loc=" + fmtLoc(origin) + " distSq=0.0.", 1);
             return GravePlacementResult.of(origin, GravePlacementReason.NETHER_ROOF);
         }
 
         Location powderSnow = resolvePowderSnowPlacement(livingEntity, origin, grave);
         if (powderSnow != null) {
-            plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.POWDER_SNOW + " loc=" + fmtLoc(powderSnow) + " distSq=" + distSq(origin, powderSnow) + ".", 1);
+            plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.POWDER_SNOW + " loc=" + fmtLoc(powderSnow) + " distSq=" + distSq(origin, powderSnow) + ".", 1);
             return GravePlacementResult.of(powderSnow, GravePlacementReason.POWDER_SNOW);
         }
 
         Candidate nonFullSupport = resolveNonFullSupportPlacement(origin, grave);
         if (nonFullSupport != null) {
-            plugin.debugMessage(prefix + "CHOSEN=" + nonFullSupport.reason + " loc=" + fmtLoc(nonFullSupport.loc) + " distSq=" + distSq(origin, nonFullSupport.loc) + ".", 1);
+            plugin.debugMessage(() -> prefix + "CHOSEN=" + nonFullSupport.reason + " loc=" + fmtLoc(nonFullSupport.loc) + " distSq=" + distSq(origin, nonFullSupport.loc) + ".", 1);
             return GravePlacementResult.of(nonFullSupport.loc, nonFullSupport.reason);
         }
 
         if (!hasGrave(origin) && isLocationSafeGrave(origin)) {
             Material t = origin.getBlock().getType();
             if (!MaterialUtil.isWater(t) && !MaterialUtil.isLava(t)) {
-                plugin.debugMessage(prefix + "origin already safe+empty (non-fluid); using ORIGINAL_SAFE.", 1);
+                plugin.debugMessage(() -> prefix + "origin already safe+empty (non-fluid); using ORIGINAL_SAFE.", 1);
                 return GravePlacementResult.of(origin, GravePlacementReason.ORIGINAL_SAFE);
             }
         }
@@ -563,7 +563,7 @@ public final class SafeLocationManager {
         List<Candidate> candidates = new ArrayList<>();
 
         if (isVoid(origin)) {
-            plugin.debugMessage(prefix + "origin is in the void; computing last-solid void candidates only.", 1);
+            plugin.debugMessage(() -> prefix + "origin is in the void; computing last-solid void candidates only.", 1);
 
             addVoidCandidates(candidates, livingEntity, origin, grave);
 
@@ -573,18 +573,18 @@ public final class SafeLocationManager {
             Candidate best = candidates.isEmpty() ? null : candidates.get(0);
 
             if (best != null) {
-                plugin.debugMessage(prefix + "CHOSEN=" + best.reason + " loc=" + fmtLoc(best.loc) + " distSq=" + distSq(origin, best.loc) + ".", 1);
+                plugin.debugMessage(() -> prefix + "CHOSEN=" + best.reason + " loc=" + fmtLoc(best.loc) + " distSq=" + distSq(origin, best.loc) + ".", 1);
 
                 return GravePlacementResult.of(best.loc, best.reason);
             }
 
-            plugin.debugMessage(prefix + "no last-solid void candidate; " + "allowing placement to fail normally.", 1);
+            plugin.debugMessage(() -> prefix + "no last-solid void candidate; " + "allowing placement to fail normally.", 1);
 
             return GravePlacementResult.of(origin, GravePlacementReason.FALLBACK_ORIGINAL);
         }
 
         if (!isInsideBorder(origin)) {
-            plugin.debugMessage(prefix + "origin is outside the world border; " + "computing existing column candidates.", 1);
+            plugin.debugMessage(() -> prefix + "origin is outside the world border; " + "computing existing column candidates.", 1);
 
             addVoidColumnCandidates(candidates, origin, grave);
 
@@ -593,7 +593,7 @@ public final class SafeLocationManager {
             Candidate best = pickClosest(origin, candidates);
 
             if (best != null) {
-                plugin.debugMessage(prefix + "CHOSEN=" + best.reason + " loc=" + fmtLoc(best.loc) + " distSq=" + distSq(origin, best.loc) + ".", 1);
+                plugin.debugMessage(() -> prefix + "CHOSEN=" + best.reason + " loc=" + fmtLoc(best.loc) + " distSq=" + distSq(origin, best.loc) + ".", 1);
 
                 return GravePlacementResult.of(best.loc, best.reason);
             }
@@ -617,27 +617,27 @@ public final class SafeLocationManager {
         if (wallSuffocation) {
             Location lastSolid = resolveClearedLastSolid(livingEntity, origin, grave);
             if (lastSolid != null) {
-                plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.SUFFOCATION + " loc=" + fmtLoc(lastSolid) + " distSq=" + distSq(origin, lastSolid) + ".", 1);
+                plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.SUFFOCATION + " loc=" + fmtLoc(lastSolid) + " distSq=" + distSq(origin, lastSolid) + ".", 1);
                 return GravePlacementResult.of(lastSolid, GravePlacementReason.SUFFOCATION);
             }
 
             Location suffocation = resolveSuffocationLocation(origin, grave);
             if (suffocation != null) {
-                plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.SUFFOCATION + " loc=" + fmtLoc(suffocation) + " distSq=" + distSq(origin, suffocation) + ".", 1);
+                plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.SUFFOCATION + " loc=" + fmtLoc(suffocation) + " distSq=" + distSq(origin, suffocation) + ".", 1);
                 return GravePlacementResult.of(suffocation, GravePlacementReason.SUFFOCATION);
             }
 
-            plugin.debugMessage(prefix + "wall suffocation detected but no above/below placement found; continuing.", 1);
+            plugin.debugMessage(() -> prefix + "wall suffocation detected but no above/below placement found; continuing.", 1);
         } else if (isPlacementEnabled("placement.feet-blocked", grave, true) && isFeetBlocked(origin, grave)) {
             Location feetBlocked = resolveBlockedPlacement(origin, grave, GravePlacementReason.FEET_BLOCKED);
             if (feetBlocked != null) {
-                plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.FEET_BLOCKED + " loc=" + fmtLoc(feetBlocked) + " distSq=" + distSq(origin, feetBlocked) + ".", 1);
+                plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.FEET_BLOCKED + " loc=" + fmtLoc(feetBlocked) + " distSq=" + distSq(origin, feetBlocked) + ".", 1);
                 return GravePlacementResult.of(feetBlocked, GravePlacementReason.FEET_BLOCKED);
             }
         } else if (isPlacementEnabled("placement.head-blocked", grave, true) && isHeadBlocked(origin, grave)) {
             Location headBlocked = resolveBlockedPlacement(origin, grave, GravePlacementReason.HEAD_BLOCKED);
             if (headBlocked != null) {
-                plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.HEAD_BLOCKED + " loc=" + fmtLoc(headBlocked) + " distSq=" + distSq(origin, headBlocked) + ".", 1);
+                plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.HEAD_BLOCKED + " loc=" + fmtLoc(headBlocked) + " distSq=" + distSq(origin, headBlocked) + ".", 1);
                 return GravePlacementResult.of(headBlocked, GravePlacementReason.HEAD_BLOCKED);
             }
         } else if (inWaterOrAbove) {
@@ -648,7 +648,7 @@ public final class SafeLocationManager {
             if (waterSmart) {
                 Location smart = resolveSmartFromLastSolid(livingEntity, origin, grave, useGround, useRoof);
                 if (smart != null) {
-                    plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.WATER_SMART + " loc=" + fmtLoc(smart) + " distSq=" + distSq(origin, smart) + ".", 1);
+                    plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.WATER_SMART + " loc=" + fmtLoc(smart) + " distSq=" + distSq(origin, smart) + ".", 1);
                     return GravePlacementResult.of(smart, GravePlacementReason.WATER_SMART);
                 }
             }
@@ -656,7 +656,7 @@ public final class SafeLocationManager {
             if (directlyAboveWater) {
                 Location above = centerOnBlock(origin);
                 if (above != null && !isVoid(above) && isInsideBorder(above) && !hasGrave(above) && isLocationSafeGraveAboveFluid(above, true)) {
-                    plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.WATER_ABOVE + " loc=" + fmtLoc(above) + " distSq=" + distSq(origin, above) + ".", 1);
+                    plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.WATER_ABOVE + " loc=" + fmtLoc(above) + " distSq=" + distSq(origin, above) + ".", 1);
                     return GravePlacementResult.of(above, GravePlacementReason.WATER_ABOVE);
                 }
             }
@@ -667,10 +667,10 @@ public final class SafeLocationManager {
                 Location start = MaterialUtil.isWater(originType) ? origin : origin.clone().add(0.0, -1.0, 0.0);
                 Location surface = resolveFluidSurfaceTop(start, grave, true);
                 if (surface != null) {
-                    plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.WATER_TOP + " loc=" + fmtLoc(surface) + " distSq=" + distSq(origin, surface) + ".", 1);
+                    plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.WATER_TOP + " loc=" + fmtLoc(surface) + " distSq=" + distSq(origin, surface) + ".", 1);
                     return GravePlacementResult.of(surface, GravePlacementReason.WATER_TOP);
                 } else {
-                    plugin.debugMessage(prefix + "water-top enabled but no AIR surface found; continuing.", 1);
+                    plugin.debugMessage(() -> prefix + "water-top enabled but no AIR surface found; continuing.", 1);
                 }
             }
 
@@ -681,7 +681,7 @@ public final class SafeLocationManager {
             if (waterBottom) {
                 Location bottom = findWaterBottom(origin);
                 if (bottom != null && !hasGrave(bottom) && isLocationSafeGrave(bottom)) {
-                    plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.WATER_BOTTOM + " loc=" + fmtLoc(bottom) + " distSq=" + distSq(origin, bottom) + ".", 1);
+                    plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.WATER_BOTTOM + " loc=" + fmtLoc(bottom) + " distSq=" + distSq(origin, bottom) + ".", 1);
                     return GravePlacementResult.of(bottom, GravePlacementReason.WATER_BOTTOM);
                 }
             }
@@ -703,7 +703,7 @@ public final class SafeLocationManager {
             if (lavaSmart) {
                 Location smart = resolveSmartFromLastSolid(livingEntity, origin, grave, useGround, useRoof);
                 if (smart != null) {
-                    plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.LAVA_SMART + " loc=" + fmtLoc(smart) + " distSq=" + distSq(origin, smart) + ".", 1);
+                    plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.LAVA_SMART + " loc=" + fmtLoc(smart) + " distSq=" + distSq(origin, smart) + ".", 1);
                     return GravePlacementResult.of(smart, GravePlacementReason.LAVA_SMART);
                 }
             }
@@ -714,7 +714,7 @@ public final class SafeLocationManager {
                 if (directlyAboveLava) {
                     Location above = centerOnBlock(origin);
                     if (above != null && !isVoid(above) && isInsideBorder(above) && !hasGrave(above) && isLocationSafeGraveAboveFluid(above, false)) {
-                        plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.LAVA_ABOVE + " loc=" + fmtLoc(above) + " distSq=" + distSq(origin, above) + ".", 1);
+                        plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.LAVA_ABOVE + " loc=" + fmtLoc(above) + " distSq=" + distSq(origin, above) + ".", 1);
                         return GravePlacementResult.of(above, GravePlacementReason.LAVA_ABOVE);
                     }
                 }
@@ -722,11 +722,11 @@ public final class SafeLocationManager {
                 Location start = MaterialUtil.isLava(originType) ? origin : origin.clone().add(0.0, -1.0, 0.0);
                 Location surface = resolveFluidSurfaceTop(start, grave, false);
                 if (surface != null) {
-                    plugin.debugMessage(prefix + "CHOSEN=" + GravePlacementReason.LAVA_TOP + " loc=" + fmtLoc(surface) + " distSq=" + distSq(origin, surface) + ".", 1);
+                    plugin.debugMessage(() -> prefix + "CHOSEN=" + GravePlacementReason.LAVA_TOP + " loc=" + fmtLoc(surface) + " distSq=" + distSq(origin, surface) + ".", 1);
                     return GravePlacementResult.of(surface, GravePlacementReason.LAVA_TOP);
                 }
 
-                plugin.debugMessage(prefix + "lava-top enabled but no AIR surface found; continuing.", 1);
+                plugin.debugMessage(() -> prefix + "lava-top enabled but no AIR surface found; continuing.", 1);
             }
 
             if (useRoof) {
@@ -754,11 +754,11 @@ public final class SafeLocationManager {
 
         Candidate best = pickClosest(origin, candidates);
         if (best != null) {
-            plugin.debugMessage(prefix + "CHOSEN=" + best.reason + " loc=" + fmtLoc(best.loc) + " distSq=" + distSq(origin, best.loc) + ".", 1);
+            plugin.debugMessage(() -> prefix + "CHOSEN=" + best.reason + " loc=" + fmtLoc(best.loc) + " distSq=" + distSq(origin, best.loc) + ".", 1);
             return GravePlacementResult.of(best.loc, best.reason);
         }
 
-        plugin.debugMessage(prefix + "all candidates null; falling back to original.", 1);
+        plugin.debugMessage(() -> prefix + "all candidates null; falling back to original.", 1);
         return GravePlacementResult.of(origin, GravePlacementReason.FALLBACK_ORIGINAL);
     }
 
@@ -773,16 +773,16 @@ public final class SafeLocationManager {
         if (origin == null || origin.getWorld() == null) return;
 
         if (candidates == null || candidates.isEmpty()) {
-            plugin.debugMessage(prefix + "candidates: (none)", 1);
+            plugin.debugMessage(() -> prefix + "candidates: (none)", 1);
             return;
         }
 
-        plugin.debugMessage(prefix + "candidates:", 1);
+        plugin.debugMessage(() -> prefix + "candidates:", 1);
         for (Candidate c : candidates) {
             if (c == null || c.loc == null || c.loc.getWorld() == null) continue;
             if (!Objects.equals(c.loc.getWorld(), origin.getWorld())) continue;
 
-            plugin.debugMessage(prefix
+            plugin.debugMessage(() -> prefix
                     + " - " + c.reason
                     + " loc=" + fmtLoc(c.loc)
                     + " distSq=" + distSq(origin, c.loc), 1);

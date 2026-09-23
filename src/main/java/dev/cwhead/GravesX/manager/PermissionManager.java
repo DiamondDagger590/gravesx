@@ -40,7 +40,7 @@ public class PermissionManager {
      * @return {@code true} if the player has the specified permission, {@code false} otherwise
      */
     public boolean hasGrantedPermission(String permission, Player player) {
-        plugin.debugMessage("[PermissionManager] hasGrantedPermission(String, Player) called. Player=" + nameOf(player)
+        plugin.debugMessage(() -> "[PermissionManager] hasGrantedPermission(String, Player) called. Player=" + nameOf(player)
                 + " | Permission=" + String.valueOf(permission), 4);
 
         if (player == null) {
@@ -50,7 +50,7 @@ public class PermissionManager {
 
         boolean result = checkPermission(permission, player);
 
-        plugin.debugMessage("[PermissionManager] hasGrantedPermission(String, Player) result. Player=" + nameOf(player)
+        plugin.debugMessage(() -> "[PermissionManager] hasGrantedPermission(String, Player) result. Player=" + nameOf(player)
                 + " | Permission=" + String.valueOf(permission) + " | Result=" + result, 4);
 
         return result;
@@ -73,7 +73,7 @@ public class PermissionManager {
      */
     @Deprecated
     public boolean hasGrantedPermission(String permission, OfflinePlayer offlinePlayer) {
-        plugin.debugMessage("[PermissionManager] hasGrantedPermission(String, OfflinePlayer) called. OfflinePlayer=" + nameOf(offlinePlayer)
+        plugin.debugMessage(() -> "[PermissionManager] hasGrantedPermission(String, OfflinePlayer) called. OfflinePlayer=" + nameOf(offlinePlayer)
                 + " | Permission=" + String.valueOf(permission), 4);
 
         if (offlinePlayer == null) {
@@ -83,12 +83,12 @@ public class PermissionManager {
 
         if (offlinePlayer.isOnline()) {
             Player online = offlinePlayer.getPlayer();
-            plugin.debugMessage("[PermissionManager] OfflinePlayer is online. Attempting Player path. OfflinePlayer="
+            plugin.debugMessage(() -> "[PermissionManager] OfflinePlayer is online. Attempting Player path. OfflinePlayer="
                     + nameOf(offlinePlayer) + " | Player=" + nameOf(online), 4);
 
             if (online != null) {
                 boolean result = checkPermission(permission, online);
-                plugin.debugMessage("[PermissionManager] hasGrantedPermission(String, OfflinePlayer) (online->player) result. OfflinePlayer="
+                plugin.debugMessage(() -> "[PermissionManager] hasGrantedPermission(String, OfflinePlayer) (online->player) result. OfflinePlayer="
                         + nameOf(offlinePlayer) + " | Permission=" + String.valueOf(permission) + " | Result=" + result, 4);
                 return result;
             }
@@ -98,7 +98,7 @@ public class PermissionManager {
 
         boolean result = checkPermission(permission, offlinePlayer);
 
-        plugin.debugMessage("[PermissionManager] hasGrantedPermission(String, OfflinePlayer) result. OfflinePlayer=" + nameOf(offlinePlayer)
+        plugin.debugMessage(() -> "[PermissionManager] hasGrantedPermission(String, OfflinePlayer) result. OfflinePlayer=" + nameOf(offlinePlayer)
                 + " | Permission=" + String.valueOf(permission) + " | Result=" + result, 4);
 
         return result;
@@ -112,7 +112,7 @@ public class PermissionManager {
      * @return true if granted or op
      */
     public boolean hasGrantedPermissionOrOp(String permission, Player player) {
-        plugin.debugMessage("[PermissionManager] hasGrantedPermissionOrOp(String, Player) called. Player=" + nameOf(player)
+        plugin.debugMessage(() -> "[PermissionManager] hasGrantedPermissionOrOp(String, Player) called. Player=" + nameOf(player)
                 + " | Permission=" + permission, 4);
 
         if (player == null) {
@@ -121,12 +121,12 @@ public class PermissionManager {
         }
 
         boolean isOp = player.isOp();
-        plugin.debugMessage("[PermissionManager] hasGrantedPermissionOrOp(String, Player) player.isOp()=" + isOp
+        plugin.debugMessage(() -> "[PermissionManager] hasGrantedPermissionOrOp(String, Player) player.isOp()=" + isOp
                 + " | Player=" + nameOf(player), 4);
 
         boolean result = isOp || hasGrantedPermission(permission, player);
 
-        plugin.debugMessage("[PermissionManager] hasGrantedPermissionOrOp(String, Player) result. Player=" + nameOf(player)
+        plugin.debugMessage(() -> "[PermissionManager] hasGrantedPermissionOrOp(String, Player) result. Player=" + nameOf(player)
                 + " | Permission=" + permission + " | Result=" + result, 4);
 
         return result;
@@ -140,7 +140,7 @@ public class PermissionManager {
      * @return true if any permission is granted
      */
     public boolean hasAnyGrantedPermission(Player player, String... permissions) {
-        plugin.debugMessage("[PermissionManager] hasAnyGrantedPermission(Player, String...) called. Player=" + nameOf(player)
+        plugin.debugMessage(() -> "[PermissionManager] hasAnyGrantedPermission(Player, String...) called. Player=" + nameOf(player)
                 + " | PermissionsCount=" + (permissions == null ? "null" : permissions.length), 4);
 
         if (player == null) {
@@ -154,15 +154,15 @@ public class PermissionManager {
 
         for (String perm : permissions) {
             boolean granted = hasGrantedPermission(perm, player);
-            plugin.debugMessage("[PermissionManager] hasAnyGrantedPermission(Player, String...) checked. Player=" + nameOf(player)
+            plugin.debugMessage(() -> "[PermissionManager] hasAnyGrantedPermission(Player, String...) checked. Player=" + nameOf(player)
                     + " | Permission=" + perm + " | Granted=" + granted, 4);
             if (granted) {
-                plugin.debugMessage("[PermissionManager] hasAnyGrantedPermission(Player, String...) result: true (matched). Player=" + nameOf(player), 4);
+                plugin.debugMessage(() -> "[PermissionManager] hasAnyGrantedPermission(Player, String...) result: true (matched). Player=" + nameOf(player), 4);
                 return true;
             }
         }
 
-        plugin.debugMessage("[PermissionManager] hasAnyGrantedPermission(Player, String...) result: false (no matches). Player=" + nameOf(player), 4);
+        plugin.debugMessage(() -> "[PermissionManager] hasAnyGrantedPermission(Player, String...) result: false (no matches). Player=" + nameOf(player), 4);
         return false;
     }
 
@@ -174,7 +174,7 @@ public class PermissionManager {
      * @return true if all permissions are granted
      */
     public boolean hasAllGrantedPermissions(Player player, String... permissions) {
-        plugin.debugMessage("[PermissionManager] hasAllGrantedPermissions(Player, String...) called. Player=" + nameOf(player)
+        plugin.debugMessage(() -> "[PermissionManager] hasAllGrantedPermissions(Player, String...) called. Player=" + nameOf(player)
                 + " | PermissionsCount=" + (permissions == null ? "null" : permissions.length), 4);
 
         if (player == null) {
@@ -188,15 +188,15 @@ public class PermissionManager {
 
         for (String perm : permissions) {
             boolean granted = hasGrantedPermission(perm, player);
-            plugin.debugMessage("[PermissionManager] hasAllGrantedPermissions(Player, String...) checked. Player=" + nameOf(player)
+            plugin.debugMessage(() -> "[PermissionManager] hasAllGrantedPermissions(Player, String...) checked. Player=" + nameOf(player)
                     + " | Permission=" + perm + " | Granted=" + granted, 4);
             if (!granted) {
-                plugin.debugMessage("[PermissionManager] hasAllGrantedPermissions(Player, String...) result: false (missing). Player=" + nameOf(player), 4);
+                plugin.debugMessage(() -> "[PermissionManager] hasAllGrantedPermissions(Player, String...) result: false (missing). Player=" + nameOf(player), 4);
                 return false;
             }
         }
 
-        plugin.debugMessage("[PermissionManager] hasAllGrantedPermissions(Player, String...) result: true (all granted). Player=" + nameOf(player), 4);
+        plugin.debugMessage(() -> "[PermissionManager] hasAllGrantedPermissions(Player, String...) result: true (all granted). Player=" + nameOf(player), 4);
         return true;
     }
 
@@ -208,7 +208,7 @@ public class PermissionManager {
      * @return true if any permission is granted
      */
     public boolean hasAnyGrantedPermission(Player player, Collection<String> permissions) {
-        plugin.debugMessage("[PermissionManager] hasAnyGrantedPermission(Player, Collection) called. Player=" + nameOf(player)
+        plugin.debugMessage(() -> "[PermissionManager] hasAnyGrantedPermission(Player, Collection) called. Player=" + nameOf(player)
                 + " | PermissionsCount=" + (permissions == null ? "null" : permissions.size()), 4);
 
         if (player == null) {
@@ -222,15 +222,15 @@ public class PermissionManager {
 
         for (String perm : permissions) {
             boolean granted = hasGrantedPermission(perm, player);
-            plugin.debugMessage("[PermissionManager] hasAnyGrantedPermission(Player, Collection) checked. Player=" + nameOf(player)
+            plugin.debugMessage(() -> "[PermissionManager] hasAnyGrantedPermission(Player, Collection) checked. Player=" + nameOf(player)
                     + " | Permission=" + String.valueOf(perm) + " | Granted=" + granted, 4);
             if (granted) {
-                plugin.debugMessage("[PermissionManager] hasAnyGrantedPermission(Player, Collection) result: true (matched). Player=" + nameOf(player), 4);
+                plugin.debugMessage(() -> "[PermissionManager] hasAnyGrantedPermission(Player, Collection) result: true (matched). Player=" + nameOf(player), 4);
                 return true;
             }
         }
 
-        plugin.debugMessage("[PermissionManager] hasAnyGrantedPermission(Player, Collection) result: false (no matches). Player=" + nameOf(player), 4);
+        plugin.debugMessage(() -> "[PermissionManager] hasAnyGrantedPermission(Player, Collection) result: false (no matches). Player=" + nameOf(player), 4);
         return false;
     }
 
@@ -242,7 +242,7 @@ public class PermissionManager {
      * @return true if all permissions are granted
      */
     public boolean hasAllGrantedPermissions(Player player, Collection<String> permissions) {
-        plugin.debugMessage("[PermissionManager] hasAllGrantedPermissions(Player, Collection) called. Player=" + nameOf(player)
+        plugin.debugMessage(() -> "[PermissionManager] hasAllGrantedPermissions(Player, Collection) called. Player=" + nameOf(player)
                 + " | PermissionsCount=" + (permissions == null ? "null" : permissions.size()), 4);
 
         if (player == null) {
@@ -256,15 +256,15 @@ public class PermissionManager {
 
         for (String perm : permissions) {
             boolean granted = hasGrantedPermission(perm, player);
-            plugin.debugMessage("[PermissionManager] hasAllGrantedPermissions(Player, Collection) checked. Player=" + nameOf(player)
+            plugin.debugMessage(() -> "[PermissionManager] hasAllGrantedPermissions(Player, Collection) checked. Player=" + nameOf(player)
                     + " | Permission=" + String.valueOf(perm) + " | Granted=" + granted, 4);
             if (!granted) {
-                plugin.debugMessage("[PermissionManager] hasAllGrantedPermissions(Player, Collection) result: false (missing). Player=" + nameOf(player), 4);
+                plugin.debugMessage(() -> "[PermissionManager] hasAllGrantedPermissions(Player, Collection) result: false (missing). Player=" + nameOf(player), 4);
                 return false;
             }
         }
 
-        plugin.debugMessage("[PermissionManager] hasAllGrantedPermissions(Player, Collection) result: true (all granted). Player=" + nameOf(player), 4);
+        plugin.debugMessage(() -> "[PermissionManager] hasAllGrantedPermissions(Player, Collection) result: true (all granted). Player=" + nameOf(player), 4);
         return true;
     }
 
@@ -283,7 +283,7 @@ public class PermissionManager {
             provider = "Bukkit";
         }
 
-        plugin.debugMessage("[PermissionManager] getActivePermissionProviderName() -> " + provider, 4);
+        plugin.debugMessage(() -> "[PermissionManager] getActivePermissionProviderName() -> " + provider, 4);
         return provider;
     }
 
@@ -292,7 +292,7 @@ public class PermissionManager {
      */
     public boolean isUsingLuckPerms() {
         boolean value = plugin.getIntegrationManager().hasLuckPermsHandler();
-        plugin.debugMessage("[PermissionManager] isUsingLuckPerms() -> " + value, 4);
+        plugin.debugMessage(() -> "[PermissionManager] isUsingLuckPerms() -> " + value, 4);
         return value;
     }
 
@@ -301,7 +301,7 @@ public class PermissionManager {
      */
     public boolean isUsingVaultPermissions() {
         boolean value = plugin.getIntegrationManager().hasVault() || plugin.getIntegrationManager().hasVaultPermProvider();
-        plugin.debugMessage("[PermissionManager] isUsingVaultPermissions() -> " + value, 4);
+        plugin.debugMessage(() -> "[PermissionManager] isUsingVaultPermissions() -> " + value, 4);
         return value;
     }
 
@@ -331,12 +331,12 @@ public class PermissionManager {
      * @return {@code true} if granted by the active provider, otherwise {@code false}
      */
     private boolean checkPermission(String permission, Player player) {
-        plugin.debugMessage("[PermissionManager] checkPermission(String, Player) called. Player=" + nameOf(player)
+        plugin.debugMessage(() -> "[PermissionManager] checkPermission(String, Player) called. Player=" + nameOf(player)
                 + " | Permission=" + permission, 4);
 
         String perm = normalizePermission(permission);
         if (perm == null) {
-            plugin.debugMessage("[PermissionManager] checkPermission(String, Player) failed: permission is null/blank. Player="
+            plugin.debugMessage(() -> "[PermissionManager] checkPermission(String, Player) failed: permission is null/blank. Player="
                     + nameOf(player) + " | Returning false.", 4);
             return false;
         }
@@ -347,18 +347,18 @@ public class PermissionManager {
         if (isUsingLuckPerms()) {
             provider = "LuckPerms";
             hasPermission = plugin.getIntegrationManager().getLuckPermsHandler().hasPermission(player, perm);
-            plugin.debugMessage("[LuckPerms] Player: " + player.getName() + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
+            plugin.debugMessage(() -> "[LuckPerms] Player: " + player.getName() + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
         } else if (isUsingVaultPermissions()) {
             provider = "Vault";
             hasPermission = plugin.getIntegrationManager().getVault().hasPermission(player, perm);
-            plugin.debugMessage("[Vault] Player: " + player.getName() + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
+            plugin.debugMessage(() -> "[Vault] Player: " + player.getName() + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
         } else {
             provider = "Bukkit";
             hasPermission = player.hasPermission(perm);
-            plugin.debugMessage("[Bukkit] Player: " + player.getName() + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
+            plugin.debugMessage(() -> "[Bukkit] Player: " + player.getName() + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
         }
 
-        plugin.debugMessage("[PermissionManager] checkPermission(String, Player) result. Player=" + nameOf(player)
+        plugin.debugMessage(() -> "[PermissionManager] checkPermission(String, Player) result. Player=" + nameOf(player)
                 + " | Permission=" + perm + " | Provider=" + provider + " | Result=" + hasPermission, 4);
 
         return hasPermission;
@@ -386,12 +386,12 @@ public class PermissionManager {
      * @return {@code true} if granted by an offline-capable provider, otherwise {@code false}
      */
     private boolean checkPermission(String permission, OfflinePlayer offlinePlayer) {
-        plugin.debugMessage("[PermissionManager] checkPermission(String, OfflinePlayer) called. OfflinePlayer=" + nameOf(offlinePlayer)
+        plugin.debugMessage(() -> "[PermissionManager] checkPermission(String, OfflinePlayer) called. OfflinePlayer=" + nameOf(offlinePlayer)
                 + " | Permission=" + String.valueOf(permission), 4);
 
         String perm = normalizePermission(permission);
         if (perm == null) {
-            plugin.debugMessage("[PermissionManager] checkPermission(String, OfflinePlayer) failed: permission is null/blank. OfflinePlayer="
+            plugin.debugMessage(() -> "[PermissionManager] checkPermission(String, OfflinePlayer) failed: permission is null/blank. OfflinePlayer="
                     + nameOf(offlinePlayer) + " | Returning false.", 4);
             return false;
         }
@@ -402,19 +402,19 @@ public class PermissionManager {
         if (isUsingLuckPerms()) {
             provider = "LuckPerms";
             hasPermission = plugin.getIntegrationManager().getLuckPermsHandler().hasPermission(offlinePlayer, perm);
-            plugin.debugMessage("[LuckPerms] Offline Player: " + safeName(offlinePlayer) + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
+            plugin.debugMessage(() -> "[LuckPerms] Offline Player: " + safeName(offlinePlayer) + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
         } else if (isUsingVaultPermissions()) {
             provider = "Vault";
             hasPermission = plugin.getIntegrationManager().getVault().hasPermission(offlinePlayer, perm);
-            plugin.debugMessage("[Vault] Offline Player: " + safeName(offlinePlayer) + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
+            plugin.debugMessage(() -> "[Vault] Offline Player: " + safeName(offlinePlayer) + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
         } else {
             provider = "Bukkit";
             hasPermission = false;
             plugin.debugMessage("[Bukkit] Failed to get offline player permission provider. Assuming player doesn't have permission.", 4);
-            plugin.debugMessage("[Bukkit] Offline Player: " + safeName(offlinePlayer) + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
+            plugin.debugMessage(() -> "[Bukkit] Offline Player: " + safeName(offlinePlayer) + " | Permission: " + perm + " | Has Permission: " + hasPermission, 4);
         }
 
-        plugin.debugMessage("[PermissionManager] checkPermission(String, OfflinePlayer) result. OfflinePlayer=" + nameOf(offlinePlayer)
+        plugin.debugMessage(() -> "[PermissionManager] checkPermission(String, OfflinePlayer) result. OfflinePlayer=" + nameOf(offlinePlayer)
                 + " | Permission=" + perm + " | Provider=" + provider + " | Result=" + hasPermission, 4);
 
         return hasPermission;
@@ -441,7 +441,7 @@ public class PermissionManager {
             return null;
         }
 
-        plugin.debugMessage("[PermissionManager] normalizePermission(String) -> " + perm, 4);
+        plugin.debugMessage(() -> "[PermissionManager] normalizePermission(String) -> " + perm, 4);
         return perm;
     }
 

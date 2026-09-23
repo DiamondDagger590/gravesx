@@ -523,7 +523,8 @@ public class EntityManager extends EntityDataManager {
                         if (w != null) w.playSound(locCopy, CompatibilitySoundEnum.valueOf(finalString.toUpperCase()), volume, pitch);
                     });
                 } catch (IllegalArgumentException exception) {
-                    plugin.debugMessage(string.toUpperCase() + " is not a Sound ENUM", 1);
+                    String soundName = string;
+                    plugin.debugMessage(() -> soundName.toUpperCase() + " is not a Sound ENUM", 1);
                 }
             }
         }
@@ -596,7 +597,8 @@ public class EntityManager extends EntityDataManager {
                     String finalString = string;
                     executeRegion(player, () -> player.playSound(locCopy, CompatibilitySoundEnum.valueOf(finalString.toUpperCase()), volume, pitch));
                 } catch (IllegalArgumentException exception) {
-                    plugin.debugMessage(string.toUpperCase() + " is not a Sound ENUM", 1);
+                    String soundName = string;
+                    plugin.debugMessage(() -> soundName.toUpperCase() + " is not a Sound ENUM", 1);
                 }
             }
         }
@@ -681,13 +683,15 @@ public class EntityManager extends EntityDataManager {
             String originalConfigString = string;
             if (grave != null) {
                 if (StringUtil.isStringEmpty(plugin.getConfigManager().getConfigSection(string, grave).getString(originalConfigString))) {
-                    plugin.debugMessage(string + " was either null or empty. Not sending message out.", 2);
+                    String messagePath = string;
+                    plugin.debugMessage(() -> messagePath + " was either null or empty. Not sending message out.", 2);
                     return;
                 }
                 string = plugin.getConfigManager().getConfigSection(string, grave).getString(string);
             } else {
                 if (StringUtil.isStringEmpty(plugin.getConfigManager().getConfigSection(string, entity.getType(), permissionList).getString(originalConfigString))) {
-                    plugin.debugMessage(string + " was either null or empty. Not sending message out.", 2);
+                    String messagePath = string;
+                    plugin.debugMessage(() -> messagePath + " was either null or empty. Not sending message out.", 2);
                     return;
                 }
                 string = plugin.getConfigManager().getConfigSection(string, entity.getType(), permissionList).getString(string);
@@ -707,14 +711,15 @@ public class EntityManager extends EntityDataManager {
                 }
 
                 String message = StringUtil.parseString(string, entity, name, location, grave, plugin);
-                plugin.debugMessage("Message found for " + string + " in grave.yml. Sending message to " + entity.getName() + ".", 2);
+                String resolvedMessage = string;
+                plugin.debugMessage(() -> "Message found for " + resolvedMessage + " in grave.yml. Sending message to " + entity.getName() + ".", 2);
                 if (plugin.getIntegrationManager().hasMiniMessage()) {
                     MiniMessage.sendMessage(player, message);
                 } else {
                     player.sendMessage(message);
                 }
             } else {
-                plugin.debugMessage("Original string " + originalConfigString + " is empty, no message sent.", 2);
+                plugin.debugMessage(() -> "Original string " + originalConfigString + " is empty, no message sent.", 2);
             }
         }
     }
@@ -761,7 +766,7 @@ public class EntityManager extends EntityDataManager {
                     || !serverCommandEvent.isCancelled()) {
                 plugin.getSchedulerManager().callSyncMethod(() -> plugin.getServer()
                         .dispatchCommand(serverCommandEvent.getSender(), serverCommandEvent.getCommand()));
-                plugin.debugMessage("Running console command " + string, 1);
+                plugin.debugMessage(() -> "Running console command " + string, 1);
             }
         }
     }
@@ -1187,7 +1192,7 @@ public class EntityManager extends EntityDataManager {
             try {
                 entityType = EntityType.valueOf(zombieType);
             } catch (IllegalArgumentException ex) {
-                plugin.debugMessage(zombieType + " is not a EntityType ENUM", 1);
+                plugin.debugMessage(() -> zombieType + " is not a EntityType ENUM", 1);
             }
 
             if ("ZOMBIE".equals(entityType.name()) && MaterialUtil.isWater(locCopy.getBlock().getType())) {
@@ -1257,7 +1262,7 @@ public class EntityManager extends EntityDataManager {
                 }
             }
 
-            plugin.debugMessage("Zombie type " + getEntityName(entity) + " spawned for grave " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Zombie type " + getEntityName(entity) + " spawned for grave " + grave.getUUID(), 1);
         });
     }
 

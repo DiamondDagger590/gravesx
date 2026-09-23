@@ -46,6 +46,7 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 public class Graves extends JavaPlugin {
     private VersionManager versionManager;
@@ -164,6 +165,7 @@ public class Graves extends JavaPlugin {
         configManager.updateIfNeeded(isPluginDevelopmentBuild());
 
         configManager.reload();
+        debugManager.refreshFromConfig();
         loadLibraries();
 
         versionManager = new VersionManager();
@@ -633,6 +635,7 @@ public class Graves extends JavaPlugin {
         getConfigManager().ensureDefaultsExist();
         getConfigManager().updateIfNeeded(isPluginDevelopmentBuild());
         getConfigManager().reload();
+        getDebugManager().refreshFromConfig();
         saveTextFiles();
 
         loadLibraries();
@@ -847,6 +850,29 @@ public class Graves extends JavaPlugin {
      */
     public void debugMessage(String string, int level) {
         getDebugManager().debug(string, level);
+    }
+
+    /**
+     * Sends a lazily built debug message using {@link DebugManager}; the supplier is invoked only if
+     * {@code level} is enabled, so callers pay nothing for messages that are not printed.
+     *
+     * @param supplier supplier of the message
+     * @param level    0=Nothing, 1=info, 2=warnings
+     * @since 2026.4.9.3
+     */
+    public void debugMessage(@NotNull Supplier<String> supplier, int level) {
+        getDebugManager().debug(supplier, level);
+    }
+
+    /**
+     * Checks whether debug messages of the given level are currently printed.
+     *
+     * @param level 0=Nothing, 1=info, 2=warnings
+     * @return {@code true} if a message at {@code level} would be printed
+     * @since 2026.4.9.3
+     */
+    public boolean isDebugEnabled(int level) {
+        return getDebugManager().isEnabled(level);
     }
 
     /**

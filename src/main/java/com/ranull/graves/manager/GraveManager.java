@@ -137,7 +137,7 @@ public class GraveManager {
             }
 
             plugin.debugMessage(
-                    "Checking grave: " + grave.getUUID() + " with remaining time: " + formatMillis(remainingTime),
+                    () -> "Checking grave: " + grave.getUUID() + " with remaining time: " + formatMillis(remainingTime),
                     1
             );
 
@@ -199,7 +199,7 @@ public class GraveManager {
         long remaining = grave.getTimeAliveRemaining();
 
         if (remaining != -1L) {
-            plugin.debugMessage("GraveTimeout check for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "GraveTimeout check for " + grave.getUUID(), 1);
 
             if (remaining <= 0L) {
                 boolean dropOnTimeout = plugin.getConfigManager().getConfigSection("drop.timeout", grave)
@@ -217,14 +217,14 @@ public class GraveManager {
                 if (tevModern.isCancelled() || tevModern.isAddon()
                         || tevLegacy.isCancelled() || tevLegacy.isAddon()) {
 
-                    plugin.debugMessage("GraveTimeoutEvent cancelled → infinite life for " + grave.getUUID(), 2);
+                    plugin.debugMessage(() -> "GraveTimeoutEvent cancelled → infinite life for " + grave.getUUID(), 2);
                     grave.setTimeAliveRemaining(-1L);
 
                 } else {
                     Location loc = tevModern.hasLocation() ? tevModern.getLocation() : tevLegacy.getLocation();
 
                     if (loc == null || loc.getWorld() == null) {
-                        plugin.debugMessage("Invalid timeout location for " + grave.getUUID(), 2);
+                        plugin.debugMessage(() -> "Invalid timeout location for " + grave.getUUID(), 2);
                     } else {
                         Location anchor = loc.clone();
 
@@ -232,7 +232,7 @@ public class GraveManager {
                             World world = loc.getWorld();
 
                             if (world == null) {
-                                plugin.debugMessage("World became null for grave " + grave.getUUID(), 2);
+                                plugin.debugMessage(() -> "World became null for grave " + grave.getUUID(), 2);
                             } else if (!dropOnTimeout && abandonEnabled) {
                                 boolean cancelled = handleGraveAbandoned(grave, loc);
 
@@ -241,11 +241,11 @@ public class GraveManager {
                                     plugin.getServer().getPluginManager().callEvent(expired);
 
                                     if (expired.isCancelled() || expired.isAddon()) {
-                                        plugin.debugMessage("Expired cancelled — grave lives forever: " + grave.getUUID(), 2);
+                                        plugin.debugMessage(() -> "Expired cancelled — grave lives forever: " + grave.getUUID(), 2);
                                         grave.setTimeAliveRemaining(-1L);
 
                                     } else {
-                                        plugin.debugMessage("Expired: removing grave (drop handled by removeGrave): " + grave.getUUID(), 2);
+                                        plugin.debugMessage(() -> "Expired: removing grave (drop handled by removeGrave): " + grave.getUUID(), 2);
 
                                         sendPlayerMessage(grave, "message.timeout", loc);
 
@@ -261,7 +261,7 @@ public class GraveManager {
                                     boolean cancelled = handleGraveAbandoned(grave, loc);
 
                                     if (cancelled) {
-                                        plugin.debugMessage("Timeout: removing grave " + grave.getUUID(), 2);
+                                        plugin.debugMessage(() -> "Timeout: removing grave " + grave.getUUID(), 2);
 
                                         dropGraveItems(loc, grave);
                                         dropGraveExperience(loc, grave);
@@ -274,7 +274,7 @@ public class GraveManager {
                                         removeGrave(grave);
                                     }
                                 } else {
-                                    plugin.debugMessage("Timeout: removing grave (drop handled by removeGrave): " + grave.getUUID(), 2);
+                                    plugin.debugMessage(() -> "Timeout: removing grave (drop handled by removeGrave): " + grave.getUUID(), 2);
 
                                     dropGraveItems(loc, grave);
                                     dropGraveExperience(loc, grave);
@@ -292,11 +292,11 @@ public class GraveManager {
                                 plugin.getServer().getPluginManager().callEvent(expired);
 
                                 if (expired.isCancelled() || expired.isAddon()) {
-                                    plugin.debugMessage("Expired cancelled — grave lives forever: " + grave.getUUID(), 2);
+                                    plugin.debugMessage(() -> "Expired cancelled — grave lives forever: " + grave.getUUID(), 2);
                                     grave.setTimeAliveRemaining(-1L);
 
                                 } else {
-                                    plugin.debugMessage("Expired: removing grave (drop handled by removeGrave): " + grave.getUUID(), 2);
+                                    plugin.debugMessage(() -> "Expired: removing grave (drop handled by removeGrave): " + grave.getUUID(), 2);
 
                                     sendPlayerMessage(grave, "message.timeout", loc);
 
@@ -333,7 +333,7 @@ public class GraveManager {
         if (aevModern.isCancelled() || aevModern.isAddon()
                 || aevLegacy.isCancelled() || aevLegacy.isAddon()) {
 
-            plugin.debugMessage("Abandon event cancelled for " + grave.getUUID(), 2);
+            plugin.debugMessage(() -> "Abandon event cancelled for " + grave.getUUID(), 2);
             sendPlayerMessage(grave, "message.timeout", loc);
             return true;
 
@@ -440,7 +440,7 @@ public class GraveManager {
         blockDataRemoveList.clear();
 
         for (Grave grave : gravesSnapshot) {
-            plugin.debugMessage("Removing grave: " + grave.getUUID(), 2);
+            plugin.debugMessage(() -> "Removing grave: " + grave.getUUID(), 2);
 
             Location graveLoc = null;
             try {
@@ -513,7 +513,7 @@ public class GraveManager {
 
             for (EntityData entityData : new ArrayList<>(values)) {
                 if (entityData == null) {
-                    plugin.debugMessage("Encountered null EntityData while processing chunk at coordinates: (" + chunkData.getX() + ", " + chunkData.getZ() + ").", 2);
+                    plugin.debugMessage(() -> "Encountered null EntityData while processing chunk at coordinates: (" + chunkData.getX() + ", " + chunkData.getZ() + ").", 2);
                     continue;
                 }
 
@@ -543,7 +543,7 @@ public class GraveManager {
 
         Entity target = plugin.getServer().getEntity(hologramData.getUUIDEntity());
         if (target == null) {
-            plugin.debugMessage("Failed to update target for " + hologramData.getUUIDEntity() + " for grave " + grave.getUUID() + ". Holograms will not update or may linger in the world.", 2);
+            plugin.debugMessage(() -> "Failed to update target for " + hologramData.getUUIDEntity() + " for grave " + grave.getUUID() + ". Holograms will not update or may linger in the world.", 2);
             return;
         }
 
@@ -609,7 +609,7 @@ public class GraveManager {
                         }
                     }
                 } catch (Throwable t) {
-                    plugin.debugMessage("Failed to get Target Location for grave " + g.getUUID() + ". Holograms will not update. \n" + Arrays.toString(t.getStackTrace()), 2);
+                    plugin.debugMessage(() -> "Failed to get Target Location for grave " + g.getUUID() + ". Holograms will not update. \n" + Arrays.toString(t.getStackTrace()), 2);
                 }
 
                 String lineTextRaw = lineListReversed.get(lineIndex);
@@ -711,7 +711,7 @@ public class GraveManager {
         plugin.getDataManager().updateGrave(grave, "protection", grave.getProtection() ? 1 : 0);
 
         if (protectionRemaining == -1L) {
-            plugin.debugMessage("Grave " + grave.getUUID() + " has infinite protection, skipping protection remaining handling.", 2);
+            plugin.debugMessage(() -> "Grave " + grave.getUUID() + " has infinite protection, skipping protection remaining handling.", 2);
             return;
         }
 
@@ -727,11 +727,11 @@ public class GraveManager {
 
             if (cancelled && !addon) {
                 grave.setProtection(true);
-                plugin.debugMessage("GraveProtectionExpiredEvent called for grave: " + grave.getUUID(), 2);
+                plugin.debugMessage(() -> "GraveProtectionExpiredEvent called for grave: " + grave.getUUID(), 2);
                 plugin.getDataManager().updateGrave(grave, "protection", 1);
                 grave.setTimeProtection(-1L);
             } else if (!cancelled && !addon) {
-                plugin.debugMessage("Grave protection expired for grave: " + grave.getUUID(), 1);
+                plugin.debugMessage(() -> "Grave protection expired for grave: " + grave.getUUID(), 1);
                 plugin.getDataManager().updateGrave(grave, "protection", grave.getProtection() ? 1 : 0);
             }
         }
@@ -789,7 +789,7 @@ public class GraveManager {
             try {
                 particle = plugin.getVersionManager().getParticleForVersion(configuredType);
             } catch (IllegalArgumentException ignored) {
-                plugin.debugMessage(configuredType + " is not a Particle ENUM", 1);
+                plugin.debugMessage(() -> configuredType + " is not a Particle ENUM", 1);
                 plugin.getLogger().severe("The Particle ENUM/INSTANCE " + configuredType + " is not valid. Update \"particle.type\" in grave.yml");
                 return;
             }
@@ -917,7 +917,7 @@ public class GraveManager {
                                 world.spawnParticle(finalParticle, anchor, count, trail);
                                 break;
                             } catch (IllegalArgumentException ex) {
-                                plugin.debugMessage("TRAIL data not supported: " + ex.getMessage(), 2);
+                                plugin.debugMessage(() -> "TRAIL data not supported: " + ex.getMessage(), 2);
                             }
                         }
                         world.spawnParticle(finalParticle, anchor, count);
@@ -950,7 +950,7 @@ public class GraveManager {
                     }
                 }
             } catch (java.lang.Throwable t) {
-                plugin.debugMessage("Particle spawn failed for " + finalParticle + ": " + t.getMessage(), 2);
+                plugin.debugMessage(() -> "Particle spawn failed for " + finalParticle + ": " + t.getMessage(), 2);
             }
         });
     }
@@ -1022,7 +1022,7 @@ public class GraveManager {
     public void removeGrave(Grave grave) {
         if (grave == null) return;
 
-        plugin.debugMessage("Starting removal of grave: " + grave.getUUID(), 1);
+        plugin.debugMessage(() -> "Starting removal of grave: " + grave.getUUID(), 1);
 
         Location anchor = null;
         try { anchor = grave.getLocationDeath(); } catch (Throwable ignored) {}
@@ -1138,7 +1138,7 @@ public class GraveManager {
 
                 try {
                     plugin.getCacheManager().getGraveMap().remove(grave.getUUID());
-                    plugin.debugMessage("Grave " + grave.getUUID() + " removed from cache", 1);
+                    plugin.debugMessage(() -> "Grave " + grave.getUUID() + " removed from cache", 1);
                 } catch (Throwable ignored) {}
 
                 try {
@@ -1175,11 +1175,11 @@ public class GraveManager {
             }
 
             if (!stillPlaced) {
-                plugin.debugMessage("[CustomGraveProvider " + p.id() + " (order=" + p.order() + ")] removed successfully.", 1);
+                plugin.debugMessage(() -> "[CustomGraveProvider " + p.id() + " (order=" + p.order() + ")] removed successfully.", 1);
                 return;
             }
 
-            plugin.debugMessage("[CustomGraveProvider " + p.id() + " (order=" + p.order() + ")] remove() returned without error, but isPlaced=true at " + anchor + ". Assuming removal is pending or isPlaced() is conservative.", 2);
+            plugin.debugMessage(() -> "[CustomGraveProvider " + p.id() + " (order=" + p.order() + ")] remove() returned without error, but isPlaced=true at " + anchor + ". Assuming removal is pending or isPlaced() is conservative.", 2);
 
         } catch (Throwable t) {
             plugin.getLogger().warning("[CustomGraveProvider " + p.id() + " (order=" + p.order() + ")] remove() failed: " + t.getMessage());
@@ -1313,7 +1313,7 @@ public class GraveManager {
                 } catch (Throwable ignored) {
                     // Defensive: ensure we don't break the loop
                 }
-                plugin.debugMessage("Closing grave inventory " + grave.getUUID() + " on viewer " + humanEntity.getName(), 1);
+                plugin.debugMessage(() -> "Closing grave inventory " + grave.getUUID() + " on viewer " + humanEntity.getName(), 1);
             }
         }
 
@@ -1333,7 +1333,7 @@ public class GraveManager {
                 if (graveMenu.getGrave() != null
                         && graveMenu.getGrave().getUUID().equals(grave.getUUID())) {
                     player.closeInventory();
-                    plugin.debugMessage("Closing grave inventory " + grave.getUUID() + " on viewer " + player.getName(), 1);
+                    plugin.debugMessage(() -> "Closing grave inventory " + grave.getUUID() + " on viewer " + player.getName(), 1);
                 }
             }
         }
@@ -1401,7 +1401,7 @@ public class GraveManager {
             }
         });
 
-        plugin.debugMessage("Creating grave " + grave.getUUID() + " for entity " + entityName, 1);
+        plugin.debugMessage(() -> "Creating grave " + grave.getUUID() + " for entity " + entityName, 1);
         return grave;
     }
 
@@ -1429,13 +1429,13 @@ public class GraveManager {
 
                 Location loc = grave.getLocationDeath();
                 if (loc == null || loc.getWorld() == null) {
-                    plugin.debugMessage("Cannot restore grave " + id + ": invalid location.", 2);
+                    plugin.debugMessage(() -> "Cannot restore grave " + id + ": invalid location.", 2);
                     continue;
                 }
 
                 checks.add(isGravePlacedAsync(grave).thenAccept(placed -> {
                     if (placed || graveMap.get(id) != grave) return;
-                    plugin.debugMessage("Grave " + id + " missing from world. Scheduling placement.", 1);
+                    plugin.debugMessage(() -> "Grave " + id + " missing from world. Scheduling placement.", 1);
                     plugin.getSchedulerManager().execute(loc, () -> {
                         if (knownGraves.contains(id) || graveMap.get(id) != grave) return; // placed or removed meanwhile
                         try {
@@ -1573,7 +1573,7 @@ public class GraveManager {
 
                 result.complete(!location.getWorld().getNearbyEntities(location, 0.49, 0.49, 0.49).isEmpty());
             } catch (Throwable t) {
-                plugin.debugMessage("isGravePlaced world check failed for " + id + " -> treating as placed. Reason: " + t, 2);
+                plugin.debugMessage(() -> "isGravePlaced world check failed for " + id + " -> treating as placed. Reason: " + t, 2);
                 result.complete(true);
             }
         };
@@ -1732,9 +1732,9 @@ public class GraveManager {
             }
 
             if (!placed) {
-                plugin.debugMessage("[CustomGraveProvider " + p.id() + " (order=" + p.order() + ")] place() returned without error, but isPlaced=false at " + anchor + ". Assuming success. Provider should implement a reliable isPlaced().", 2);
+                plugin.debugMessage(() -> "[CustomGraveProvider " + p.id() + " (order=" + p.order() + ")] place() returned without error, but isPlaced=false at " + anchor + ". Assuming success. Provider should implement a reliable isPlaced().", 2);
             } else {
-                plugin.debugMessage("[CustomGraveProvider " + p.id() + " (order=" + p.order() + ")] placed successfully.", 1);
+                plugin.debugMessage(() -> "[CustomGraveProvider " + p.id() + " (order=" + p.order() + ")] placed successfully.", 1);
             }
 
             grave.setProviderId(p.id());
@@ -1802,97 +1802,97 @@ public class GraveManager {
      */
     private void createGraveIntegrations(@NotNull Location anchor, @NotNull Grave grave) {
         if (plugin.getIntegrationManager().hasFurnitureLib() && plugin.getConfigManager().getConfigSection("furniturelib.enabled", grave).getBoolean("furniturelib.enabled", true)) {
-            plugin.debugMessage("Creating FurnitureLib furniture grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating FurnitureLib furniture grave for " + grave.getUUID(), 1);
             createGraveBlock(anchor, grave, true);
             plugin.getHologramManager().createHologram(anchor, grave);
             plugin.getIntegrationManager().getFurnitureLib().createFurniture(anchor, grave);
         } else if (plugin.getIntegrationManager().hasFurnitureEngine() && plugin.getConfigManager().getConfigSection("furnitureengine.enabled", grave).getBoolean("furnitureengine.enabled", true)) {
-            plugin.debugMessage("Creating FurnitureEngine furniture grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating FurnitureEngine furniture grave for " + grave.getUUID(), 1);
             plugin.getHologramManager().createHologram(anchor, grave);
             plugin.getIntegrationManager().getFurnitureEngine().createFurniture(anchor, grave);
         } else if (plugin.getIntegrationManager().hasItemsAdder() && plugin.getConfigManager().getConfigSection("itemsadder.furniture.enabled", grave).getBoolean("itemsadder.furniture.enabled", true)) {
-            plugin.debugMessage("Creating ItemsAdder furniture grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating ItemsAdder furniture grave for " + grave.getUUID(), 1);
             createGraveBlock(anchor, grave, true);
             plugin.getHologramManager().createHologram(anchor, grave);
             plugin.getIntegrationManager().getItemsAdder().createFurniture(anchor, grave);
         } else if (plugin.getIntegrationManager().hasItemsAdder() && plugin.getConfigManager().getConfigSection("itemsadder.block.enabled", grave).getBoolean("itemsadder.block.enabled", true)) {
-            plugin.debugMessage("Creating ItemsAdder block grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating ItemsAdder block grave for " + grave.getUUID(), 1);
             createGraveBlock(anchor, grave);
             plugin.getHologramManager().createHologram(anchor, grave);
             plugin.getIntegrationManager().getItemsAdder().createBlock(anchor, grave);
         } else if (plugin.getIntegrationManager().hasOraxen() && plugin.getConfigManager().getConfigSection("oraxen.furniture.enabled", grave).getBoolean("oraxen.furniture.enabled", true)) {
-            plugin.debugMessage("Creating Oraxen furniture grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating Oraxen furniture grave for " + grave.getUUID(), 1);
             createGraveBlock(anchor, grave, true);
             plugin.getHologramManager().createHologram(anchor, grave);
             plugin.getIntegrationManager().getOraxen().createFurniture(anchor, grave);
         } else if (plugin.getIntegrationManager().hasOraxen() && plugin.getConfigManager().getConfigSection("oraxen.block.enabled", grave).getBoolean("oraxen.block.enabled", true)) {
-            plugin.debugMessage("Creating Oraxen block grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating Oraxen block grave for " + grave.getUUID(), 1);
             createGraveBlock(anchor, grave);
             plugin.getHologramManager().createHologram(anchor, grave);
             plugin.getIntegrationManager().getOraxen().createBlock(anchor, grave);
         } else if (plugin.getIntegrationManager().hasNexo() && plugin.getConfigManager().getConfigSection("nexo.furniture.enabled", grave).getBoolean("nexo.furniture.enabled", true)) {
-            plugin.debugMessage("Creating Nexo furniture grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating Nexo furniture grave for " + grave.getUUID(), 1);
             createGraveBlock(anchor, grave, true);
             plugin.getHologramManager().createHologram(anchor, grave);
             plugin.getIntegrationManager().getNexo().createFurniture(anchor, grave);
         } else if (plugin.getIntegrationManager().hasNexo() && plugin.getConfigManager().getConfigSection("nexo.block.enabled", grave).getBoolean("nexo.block.enabled", true)) {
-            plugin.debugMessage("Creating Nexo block grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating Nexo block grave for " + grave.getUUID(), 1);
             createGraveBlock(anchor, grave);
             plugin.getHologramManager().createHologram(anchor, grave);
             plugin.getIntegrationManager().getNexo().createBlock(anchor, grave);
         } else if (plugin.getIntegrationManager().hasCraftEngine() && plugin.getConfigManager().getConfigSection("craftengine.furniture.enabled", grave).getBoolean("craftengine.furniture.enabled", true)) {
-            plugin.debugMessage("Creating CraftEngine furniture grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating CraftEngine furniture grave for " + grave.getUUID(), 1);
             createGraveBlock(anchor, grave, true);
             plugin.getHologramManager().createHologram(anchor, grave);
             plugin.getIntegrationManager().getCraftEngine().createFurniture(anchor, grave);
         } else if (plugin.getIntegrationManager().hasCraftEngine() && plugin.getConfigManager().getConfigSection("craftengine.block.enabled", grave).getBoolean("craftengine.block.enabled", true)) {
-            plugin.debugMessage("Creating CraftEngine block grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating CraftEngine block grave for " + grave.getUUID(), 1);
             createGraveBlock(anchor, grave);
             plugin.getHologramManager().createHologram(anchor, grave);
             plugin.getIntegrationManager().getCraftEngine().createBlock(anchor, grave);
         } else if (plugin.getIntegrationManager().hasPlayerNPC() && plugin.getConfigManager().getConfigSection("playernpc.corpse.enabled", grave).getBoolean("playernpc.corpse.enabled", true)) {
-            plugin.debugMessage("Creating PlayerNPC corpse grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating PlayerNPC corpse grave for " + grave.getUUID(), 1);
             plugin.getHologramManager().createHologram(anchor, grave);
             plugin.getIntegrationManager().getPlayerNPC().createCorpse(anchor, grave);
         } else if (plugin.getIntegrationManager().hasMannequins() && plugin.getConfigManager().getConfigSection("mannequins.corpse.enabled", grave).getBoolean("mannequins.corpse.enabled", true)) {
-            plugin.debugMessage("Creating Mannequins corpse grave for " + grave.getUUID(), 1);
+            plugin.debugMessage(() -> "Creating Mannequins corpse grave for " + grave.getUUID(), 1);
             plugin.getIntegrationManager().getMannequins().createCorpse(grave.getUUID(), grave.getLocationDeath(), grave);
             plugin.getHologramManager().createHologram(anchor, grave);
         } else if (plugin.getIntegrationManager().hasFancyNpcs() && plugin.getConfigManager().getConfigSection("fancynpcs.corpse.enabled", grave).getBoolean("fancynpcs.corpse.enabled", true)) {
             if (!plugin.getIntegrationManager().hasFloodgate()) {
-                plugin.debugMessage("Creating FancyNPCs corpse grave for " + grave.getUUID() + " (no Floodgate)", 1);
+                plugin.debugMessage(() -> "Creating FancyNPCs corpse grave for " + grave.getUUID() + " (no Floodgate)", 1);
                 plugin.getHologramManager().createHologram(anchor, grave);
                 plugin.getIntegrationManager().getFancyNpcs().createCorpse(grave.getUUID(), grave.getLocationDeath(), grave);
             } else {
                 try {
                     if (plugin.getIntegrationManager().getFloodgate().isFloodgateId(grave.getOwnerUUID())) {
-                        plugin.debugMessage("Creating FancyNPCs Bedrock-compatible corpse grave for " + grave.getUUID(), 1);
+                        plugin.debugMessage(() -> "Creating FancyNPCs Bedrock-compatible corpse grave for " + grave.getUUID(), 1);
                         plugin.getHologramManager().createHologram(anchor, grave);
                         plugin.getIntegrationManager().getFancyNpcs().createBedrockcompatCorpse(grave.getUUID(), grave.getLocationDeath(), grave);
                     } else {
-                        plugin.debugMessage("Creating FancyNPCs corpse grave for " + grave.getUUID() + " (Java player)", 1);
+                        plugin.debugMessage(() -> "Creating FancyNPCs corpse grave for " + grave.getUUID() + " (Java player)", 1);
                         plugin.getHologramManager().createHologram(anchor, grave);
                         plugin.getIntegrationManager().getFancyNpcs().createCorpse(grave.getUUID(), grave.getLocationDeath(), grave);
                     }
                 } catch (Throwable ignored) {
-                    plugin.debugMessage("FancyNPCs Floodgate check failed; falling back to standard corpse for " + grave.getUUID(), 1);
+                    plugin.debugMessage(() -> "FancyNPCs Floodgate check failed; falling back to standard corpse for " + grave.getUUID(), 1);
                     plugin.getHologramManager().createHologram(anchor, grave);
                     plugin.getIntegrationManager().getFancyNpcs().createCorpse(grave.getUUID(), grave.getLocationDeath(), grave);
                 }
             }
         } else {
             if (plugin.getConfigManager().getConfigSection("armor-stand.enabled", grave).getBoolean("armor-stand.enabled", false)) {
-                plugin.debugMessage("Creating ArmorStand grave for " + grave.getUUID(), 1);
+                plugin.debugMessage(() -> "Creating ArmorStand grave for " + grave.getUUID(), 1);
                 createGraveBlock(anchor, grave, true);
                 plugin.getHologramManager().createHologram(anchor, grave);
                 plugin.getEntityManager().createArmorStand(anchor, grave);
             } else if (plugin.getConfigManager().getConfigSection("item-frame.enabled", grave).getBoolean("item-frame.enabled", false)) {
-                plugin.debugMessage("Creating ItemFrame grave for " + grave.getUUID(), 1);
+                plugin.debugMessage(() -> "Creating ItemFrame grave for " + grave.getUUID(), 1);
                 createGraveBlock(anchor, grave, true);
                 plugin.getHologramManager().createHologram(anchor, grave);
                 plugin.getEntityManager().createItemFrame(anchor, grave);
             } else {
-                plugin.debugMessage("Creating Block grave for " + grave.getUUID(), 1);
+                plugin.debugMessage(() -> "Creating Block grave for " + grave.getUUID(), 1);
                 createGraveBlock(anchor, grave);
                 plugin.getHologramManager().createHologram(anchor, grave);
             }
@@ -2042,7 +2042,7 @@ public class GraveManager {
         }
         if (location == null || location.getWorld() == null) {
             removeGrave(grave);
-            plugin.debugMessage("Grave " + grave.getUUID() + " broken (no valid location/world for drops)", 1);
+            plugin.debugMessage(() -> "Grave " + grave.getUUID() + " broken (no valid location/world for drops)", 1);
             return;
         }
 
@@ -2055,9 +2055,9 @@ public class GraveManager {
                     grave.getLocationDeath().getBlock().setType(Material.valueOf("AIR"));
                 }
                 removeGrave(grave);
-                plugin.debugMessage("Grave " + grave.getUUID() + " broken", 1);
+                plugin.debugMessage(() -> "Grave " + grave.getUUID() + " broken", 1);
             } catch (Throwable t) {
-                plugin.debugMessage("Grave " + grave.getUUID() + " failed to break due to an error", 2);
+                plugin.debugMessage(() -> "Grave " + grave.getUUID() + " failed to break due to an error", 2);
                 plugin.getLogger().severe("Error while dropping items/XP for grave " + grave.getUUID() + ": " + t.getMessage());
                 plugin.logStackTrace(t);
             }
@@ -2097,7 +2097,7 @@ public class GraveManager {
 
                 inv.clear();
             } catch (Throwable t) {
-                plugin.debugMessage("dropGraveItems failed for " + grave.getUUID() + ": " + t.getMessage(), 2);
+                plugin.debugMessage(() -> "dropGraveItems failed for " + grave.getUUID() + ": " + t.getMessage(), 2);
                 plugin.logStackTrace(t);
             }
         });
@@ -2169,7 +2169,7 @@ public class GraveManager {
                 ExperienceOrb experienceOrb = (ExperienceOrb) world.spawnEntity(anchor, EntityType.EXPERIENCE_ORB);
 
                 experienceOrb.setExperience(xp);
-                plugin.debugMessage("Dropping experience for grave " + grave.getUUID() + " in the amount of " + grave.getExperience(), 1);
+                plugin.debugMessage(() -> "Dropping experience for grave " + grave.getUUID() + " in the amount of " + grave.getExperience(), 1);
                 grave.setExperience(0);
             } catch (Throwable t) {
                 plugin.getLogger().severe("Unable to drop grave experience in the total of " + grave.getExperience() + ": " + t.getMessage());
@@ -2555,7 +2555,7 @@ public class GraveManager {
                 removeGrave(grave);
                 closeGrave(grave);
 
-                plugin.debugMessage("Grave " + grave.getUUID() + " autolooted by " + player.getName(), 1);
+                plugin.debugMessage(() -> "Grave " + grave.getUUID() + " autolooted by " + player.getName(), 1);
             } else {
                 plugin.getEntityManager().playWorldSound("sound.open", location, grave);
             }
@@ -2585,7 +2585,7 @@ public class GraveManager {
                     .getMethod("adjustPlayerBalanceToAmounOfMoneyInInventory", Player.class);
             adjustToInventory.invoke(rewardManager, player);
         } catch (Throwable throwable) {
-            plugin.debugMessage("Failed to sync BagOfGold balance after grave auto-loot: " + throwable.getMessage(), 1);
+            plugin.debugMessage(() -> "Failed to sync BagOfGold balance after grave auto-loot: " + throwable.getMessage(), 1);
         }
     }
 
@@ -2768,7 +2768,7 @@ public class GraveManager {
                 Effect effect = Effect.valueOf(resolved.toUpperCase(Locale.ROOT));
                 world.playEffect(location, effect, data);
             } catch (IllegalArgumentException ex) {
-                plugin.debugMessage(resolved.toUpperCase(Locale.ROOT) + " is not an Effect ENUM", 1);
+                plugin.debugMessage(() -> resolved.toUpperCase(Locale.ROOT) + " is not an Effect ENUM", 1);
             }
         });
     }

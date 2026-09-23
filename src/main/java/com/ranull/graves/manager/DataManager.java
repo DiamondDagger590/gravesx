@@ -2183,7 +2183,8 @@ public class DataManager {
                     deleteStmt.executeUpdate();
                 }
 
-                plugin.debugMessage("Deleted " + scheduledRemovals + " holograms from DB for grave UUID: " + grave.getUUID(), 2);
+                int deletedCount = scheduledRemovals;
+                plugin.debugMessage(() -> "Deleted " + deletedCount + " holograms from DB for grave UUID: " + grave.getUUID(), 2);
 
             } catch (SQLException e) {
                 plugin.getLogger().severe("Error deleting holograms for grave " + grave.getUUID());
@@ -2269,7 +2270,7 @@ public class DataManager {
                     String query = "DELETE FROM " + getStoragePrefix() + table + " WHERE uuid_entity = ?";
                     executeUpdate(query, new Object[] { entityData.getUUIDEntity().toString() });
 
-                    plugin.debugMessage("Removing " + getStoragePrefix() + table + " for grave " + entityData.getUUIDGrave(), 1);
+                    plugin.debugMessage(() -> "Removing " + getStoragePrefix() + table + " for grave " + entityData.getUUIDGrave(), 1);
                 }
             } catch (SQLException e) {
                 plugin.getLogger().severe("Failed to remove entity data");
@@ -2429,9 +2430,9 @@ public class DataManager {
 
         runAsyncDatabaseTask(() -> {
             try {
-                plugin.debugMessage("Attempting to remove grave for UUID: " + uuid, 1);
+                plugin.debugMessage(() -> "Attempting to remove grave for UUID: " + uuid, 1);
                 executeUpdate(deleteQuery, deleteParams);
-                plugin.debugMessage("Grave successfully removed for UUID: " + uuid, 1);
+                plugin.debugMessage(() -> "Grave successfully removed for UUID: " + uuid, 1);
             } catch (SQLException e) {
                 plugin.getLogger().severe("Failed to remove grave");
                 plugin.logStackTrace(e);
